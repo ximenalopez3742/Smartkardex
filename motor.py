@@ -29,6 +29,21 @@ Correcciones respecto a versiones anteriores:
     aunque tenga reprobaciones previas → desbloquea prerrequisitos correctamente
   - Art. 33 cuenta periodos DISTINTOS de reprobación, no filas individuales
 """
+"""
+motor.py — Motor de Inferencia IA para sugerencias académicas
+=============================================================
+Compara el historial del alumno contra el Plan de Estudios IELC y genera:
+  - Materias disponibles para el próximo ciclo (prerrequisitos cumplidos)
+  - Materias bloqueadas y por qué prerrequisito les falta
+  - Alertas institucionales (Art. 33, Servicio Social, Prácticas)
+  - Progreso por área de formación
+
+Correcciones respecto a versiones anteriores:
+  - JOIN correcto por alumno_id (schema real de extractor.py)
+  - Estatus FINAL por materia: si tiene al menos un APROBADA, cuenta como aprobada
+    aunque tenga reprobaciones previas → desbloquea prerrequisitos correctamente
+  - Art. 33 cuenta periodos DISTINTOS de reprobación, no filas individuales
+"""
 
 import re
 from collections import defaultdict
@@ -184,14 +199,24 @@ class MotorInferencia:
         # ── 5. Comparación con créditos del kardex ────────────────
         diferencia_creditos = creditos_kardex - creditos_propios_total
         discrepancias_area = []
+
+        # Construir mapa normalizado de créditos propios por área
+        # para comparar sin importar acentos/mayúsculas
+        creditos_propios_norm = {
+            normalizar(k): v for k, v in creditos_propios_por_area.items()
+        }
+
         cursor.execute("""
             SELECT area, adquiridos FROM creditos_por_area WHERE alumno_id=?
         """, (alumno_id,))
         for r in cursor.fetchall():
             area = r["area"]
             adq_kardex = r["adquiridos"]
-            adq_propio = creditos_propios_por_area.get(area, 0)
-            if abs(adq_kardex - adq_propio) > 0:
+            # Buscar por nombre normalizado para tolerar "BASICO COMUN" vs "Básica Común"
+            adq_propio = creditos_propios_norm.get(normalizar(area), 0)
+            # Solo reportar discrepancia si la diferencia es significativa (>2 cr)
+            # para evitar ruido por materias fuera del plan oficial
+            if abs(adq_kardex - adq_propio) > 2:
                 discrepancias_area.append({
                     "area": area,
                     "kardex": adq_kardex,
@@ -388,29 +413,44 @@ class MotorInferencia:
         umbral_servicio  = int(creditos_requeridos * PCT_SERVICIO_SOCIAL)
         umbral_practicas = int(creditos_requeridos * PCT_PRACTICAS_PROF)
  
-        if alumno.get("practicas_profesionales"):
-            alertas.append({"tipo": "PRACTICAS_COMPLETADAS", "icono": "✅",
-                            "descripcion": "Prácticas profesionales registradas como completadas."})
-        elif alumno.get("servicio_social"):
+        # Servicio Social — independiente de Prácticas
+        if alumno.get("servicio_social"):
             alertas.append({"tipo": "SERVICIO_COMPLETADO", "icono": "✅",
                             "descripcion": "Servicio social registrado como completado."})
-        elif creditos_propios_total >= umbral_practicas:
-            alertas.append({"tipo": "PRACTICAS", "icono": "🔵",
-                            "descripcion": (
-                                f"Con {creditos_propios_total}/{creditos_requeridos} créditos "
-                                f"({pct_avance:.1f}%) ya puedes tramitar Prácticas Profesionales."
-                            )})
         elif creditos_propios_total >= umbral_servicio:
             alertas.append({"tipo": "SERVICIO_SOCIAL", "icono": "🟢",
                             "descripcion": (
                                 f"Con {creditos_propios_total}/{creditos_requeridos} créditos "
-                                f"({pct_avance:.1f}%) ya puedes realizar Servicio Social."
+                                f"({pct_avance:.1f}%) ya puedes realizar Servicio Social "
+                                f"(requiere {umbral_servicio} cr, tienes {creditos_propios_total})."
                             )})
         else:
             alertas.append({"tipo": "SERVICIO_PENDIENTE", "icono": "⏳",
                             "descripcion": (
-                                f"Servicio Social: te faltan {umbral_servicio - creditos_propios_total} créditos "
-                                f"({creditos_propios_total}/{umbral_servicio})."
+                                f"Servicio Social: te faltan "
+                                f"{umbral_servicio - creditos_propios_total} créditos "
+                                f"({creditos_propios_total}/{umbral_servicio} = "
+                                f"{creditos_propios_total/umbral_servicio*100:.0f}%)."
+                            )})
+
+        # Prácticas Profesionales — independiente de Servicio Social
+        if alumno.get("practicas_profesionales"):
+            alertas.append({"tipo": "PRACTICAS_COMPLETADAS", "icono": "✅",
+                            "descripcion": "Prácticas profesionales registradas como completadas."})
+        elif creditos_propios_total >= umbral_practicas:
+            alertas.append({"tipo": "PRACTICAS", "icono": "🔵",
+                            "descripcion": (
+                                f"Con {creditos_propios_total}/{creditos_requeridos} créditos "
+                                f"({pct_avance:.1f}%) ya puedes tramitar Prácticas Profesionales "
+                                f"(requiere {umbral_practicas} cr)."
+                            )})
+        else:
+            alertas.append({"tipo": "PRACTICAS_PENDIENTE", "icono": "⏳",
+                            "descripcion": (
+                                f"Prácticas Profesionales: te faltan "
+                                f"{umbral_practicas - creditos_propios_total} créditos "
+                                f"({creditos_propios_total}/{umbral_practicas} = "
+                                f"{creditos_propios_total/umbral_practicas*100:.0f}%)."
                             )})
  
         promedio_actual = alumno["promedio"] or 0.0
