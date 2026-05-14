@@ -1,216 +1,143 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Smartkardex — UDG</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,300&display=swap" rel="stylesheet" />
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet"/>
 <style>
-/* ── Reset & Variables ──────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:       #0d1117;
-  --surface:  #161b22;
-  --surface2: #1c2330;
-  --border:   #30363d;
-  --border2:  #21262d;
-  --text:     #e6edf3;
-  --muted:    #7d8590;
-  --green:    #3fb950;
-  --green-dim:#1a4731;
-  --blue:     #388bfd;
-  --blue-dim: #0d2044;
-  --yellow:   #d29922;
-  --yellow-dim:#2d2208;
-  --red:      #f85149;
-  --red-dim:  #3d1a1a;
-  --orange:   #e3b341;
-  --purple:   #8b5cf6;
-  --teal:     #39d353;
-  --accent:   #3fb950;
-  --mono:     'Space Mono', monospace;
-  --sans:     'DM Sans', sans-serif;
-  --radius:   8px;
-  --transition: 0.18s ease;
+  --bg:#0a0c10;
+  --surface:#111318;
+  --surface2:#191d25;
+  --surface3:#1e232d;
+  --border:#252b38;
+  --border2:#1c2130;
+  --text:#dde4ef;
+  --muted:#5a6480;
+  --muted2:#8591a8;
+  --green:#00d97e;
+  --green-dim:#002b1a;
+  --green-glow:rgba(0,217,126,.12);
+  --blue:#4d9fff;
+  --blue-dim:#0a1f3d;
+  --yellow:#f0b429;
+  --yellow-dim:#2a1e05;
+  --red:#ff5757;
+  --red-dim:#2a0f0f;
+  --orange:#ff8c42;
+  --purple:#a78bfa;
+  --mono:'IBM Plex Mono',monospace;
+  --sans:'IBM Plex Sans',sans-serif;
+  --r:6px;
+  --tr:.16s ease;
 }
 html{scroll-behavior:smooth}
-body{
-  font-family:var(--sans);
-  background:var(--bg);
-  color:var(--text);
-  min-height:100vh;
-  font-size:14px;
-  line-height:1.6;
-}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.6}
 
-/* ── Scrollbar ─────────────────────────────────────────── */
-::-webkit-scrollbar{width:6px;height:6px}
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 
-/* ── Layout ────────────────────────────────────────────── */
-.app-shell{display:flex;flex-direction:column;min-height:100vh}
+/* ── Header ── */
 header{
-  position:sticky;top:0;z-index:100;
-  background:rgba(13,17,23,.92);
+  position:sticky;top:0;z-index:200;
+  background:rgba(10,12,16,.9);
   border-bottom:1px solid var(--border);
-  backdrop-filter:blur(12px);
-  padding:0 24px;
-  display:flex;align-items:center;gap:16px;height:56px;
+  backdrop-filter:blur(16px);
+  padding:0 28px;height:54px;
+  display:flex;align-items:center;gap:14px;
 }
 .logo{
-  font-family:var(--mono);font-size:18px;font-weight:700;
+  font-family:var(--mono);font-size:16px;font-weight:700;
   color:var(--green);letter-spacing:-0.5px;
-  display:flex;align-items:center;gap:8px;
-  text-decoration:none;
+  display:flex;align-items:center;gap:8px;text-decoration:none;
 }
-.logo-badge{
-  background:var(--green-dim);border:1px solid var(--green);
-  color:var(--green);font-size:10px;padding:1px 6px;border-radius:4px;
-  letter-spacing:1px;
+.logo-pill{
+  background:var(--green-dim);border:1px solid rgba(0,217,126,.3);
+  color:var(--green);font-size:10px;padding:1px 7px;border-radius:20px;
+  letter-spacing:.5px;font-weight:600;
 }
-.header-sub{color:var(--muted);font-size:12px;margin-left:4px}
+.header-divider{width:1px;height:18px;background:var(--border);flex-shrink:0}
+.header-sub{color:var(--muted);font-size:12px;font-family:var(--mono)}
 .header-right{margin-left:auto;display:flex;align-items:center;gap:8px}
 
-main{flex:1;padding:24px;max-width:1200px;margin:0 auto;width:100%}
+/* ── Main ── */
+main{padding:28px;max-width:1100px;margin:0 auto;width:100%}
 
-/* ── Cards & Panels ────────────────────────────────────── */
-.card{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);overflow:hidden;
+/* ── Buttons ── */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 16px;border-radius:var(--r);border:1px solid transparent;
+  font-family:var(--sans);font-size:13px;font-weight:500;
+  cursor:pointer;transition:var(--tr);white-space:nowrap;
 }
+.btn-primary{background:var(--green);color:#000;border-color:var(--green)}
+.btn-primary:hover{background:#00bf6e;box-shadow:0 0 16px var(--green-glow)}
+.btn-secondary{background:transparent;color:var(--text);border-color:var(--border)}
+.btn-secondary:hover{background:var(--surface2);border-color:var(--muted)}
+.btn-danger{background:transparent;color:var(--red);border-color:rgba(255,87,87,.3)}
+.btn-danger:hover{background:var(--red-dim)}
+.btn-ghost{background:transparent;color:var(--muted2);border-color:transparent;padding:6px 10px}
+.btn-ghost:hover{color:var(--text);background:var(--surface2)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+
+/* ── Cards ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r)}
 .card-header{
-  padding:14px 18px;border-bottom:1px solid var(--border2);
+  padding:12px 18px;border-bottom:1px solid var(--border2);
   display:flex;align-items:center;gap:10px;
-  font-family:var(--mono);font-size:12px;font-weight:700;
-  letter-spacing:.5px;color:var(--muted);text-transform:uppercase;
+  font-family:var(--mono);font-size:11px;font-weight:600;
+  letter-spacing:.6px;color:var(--muted2);text-transform:uppercase;
 }
 .card-body{padding:18px}
 
-/* ── Upload Zone ───────────────────────────────────────── */
-#upload-zone{
-  border:2px dashed var(--border);border-radius:var(--radius);
-  padding:48px 24px;text-align:center;cursor:pointer;
-  transition:var(--transition);position:relative;
-}
-#upload-zone:hover,#upload-zone.drag-over{
-  border-color:var(--green);background:rgba(63,185,80,.04);
-}
-#upload-zone input[type=file]{
-  position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;
-}
-.upload-icon{font-size:36px;margin-bottom:12px;display:block}
-.upload-title{font-size:16px;font-weight:500;margin-bottom:6px}
-.upload-sub{color:var(--muted);font-size:13px}
-
-/* ── Buttons ───────────────────────────────────────────── */
-.btn{
-  display:inline-flex;align-items:center;gap:6px;
-  padding:7px 16px;border-radius:6px;border:1px solid transparent;
-  font-family:var(--sans);font-size:13px;font-weight:500;
-  cursor:pointer;transition:var(--transition);white-space:nowrap;
-  text-decoration:none;
-}
-.btn-primary{background:var(--green);color:#000;border-color:var(--green)}
-.btn-primary:hover{background:#3aad49;border-color:#3aad49}
-.btn-secondary{background:transparent;color:var(--text);border-color:var(--border)}
-.btn-secondary:hover{background:var(--surface2);border-color:var(--muted)}
-.btn-danger{background:transparent;color:var(--red);border-color:var(--red)}
-.btn-danger:hover{background:var(--red-dim)}
-.btn-ghost{background:transparent;color:var(--muted);border-color:transparent;padding:6px 10px}
-.btn-ghost:hover{color:var(--text);background:var(--surface2)}
-.btn-sm{padding:4px 10px;font-size:12px}
-.btn:disabled{opacity:.45;cursor:not-allowed}
-
-/* ── Form Controls ─────────────────────────────────────── */
+/* ── Form ── */
 input,select,textarea{
   background:var(--surface2);border:1px solid var(--border);
-  color:var(--text);border-radius:6px;padding:7px 11px;
-  font-family:var(--sans);font-size:13px;width:100%;
-  transition:var(--transition);
+  color:var(--text);border-radius:var(--r);padding:7px 12px;
+  font-family:var(--sans);font-size:13px;width:100%;transition:var(--tr);
 }
-input:focus,select:focus,textarea:focus{
-  outline:none;border-color:var(--green);
-  box-shadow:0 0 0 3px rgba(63,185,80,.15);
-}
-label{font-size:12px;color:var(--muted);display:block;margin-bottom:5px;font-weight:500}
+input:focus,select:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(0,217,126,.1)}
+label{font-size:12px;color:var(--muted2);display:block;margin-bottom:5px;font-weight:500}
 .form-group{margin-bottom:14px}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.checkbox-row{display:flex;align-items:center;gap:8px}
-.checkbox-row input[type=checkbox]{width:auto}
+.checkbox-row{display:flex;align-items:center;gap:9px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:var(--tr)}
+.checkbox-row:hover{border-color:var(--green)}
+.checkbox-row input[type=checkbox]{width:15px;height:15px;accent-color:var(--green);flex-shrink:0}
+.checkbox-row label{margin:0;cursor:pointer;font-size:13px;color:var(--text)}
 
-/* ── Tabs ──────────────────────────────────────────────── */
-.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:20px;gap:2px}
-.tab{
-  padding:9px 18px;font-size:13px;cursor:pointer;border-radius:6px 6px 0 0;
-  color:var(--muted);border:1px solid transparent;border-bottom:none;
-  margin-bottom:-1px;transition:var(--transition);
-  display:flex;align-items:center;gap:6px;
-}
-.tab:hover{color:var(--text)}
-.tab.active{
-  color:var(--text);background:var(--surface);
-  border-color:var(--border);border-bottom-color:var(--surface);
-}
-.tab-panel{display:none}
-.tab-panel.active{display:block}
+/* ── Badge ── */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-green{background:var(--green-dim);color:var(--green);border:1px solid rgba(0,217,126,.3)}
+.badge-red{background:var(--red-dim);color:var(--red);border:1px solid rgba(255,87,87,.3)}
+.badge-yellow{background:var(--yellow-dim);color:var(--yellow);border:1px solid rgba(240,180,41,.3)}
+.badge-blue{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(77,159,255,.3)}
+.badge-muted{background:var(--surface2);color:var(--muted2);border:1px solid var(--border)}
+.badge-orange{background:#1f1207;color:var(--orange);border:1px solid rgba(255,140,66,.3)}
 
-/* ── Badge / Tag ───────────────────────────────────────── */
-.badge{
-  display:inline-flex;align-items:center;gap:4px;
-  padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;
-}
-.badge-green{background:var(--green-dim);color:var(--green);border:1px solid var(--green)}
-.badge-red{background:var(--red-dim);color:var(--red);border:1px solid var(--red)}
-.badge-yellow{background:var(--yellow-dim);color:var(--yellow);border:1px solid var(--yellow)}
-.badge-blue{background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue)}
-.badge-muted{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
-.badge-orange{background:#2d1f08;color:var(--orange);border:1px solid var(--orange)}
+/* ── Progress ── */
+.progress-wrap{background:var(--surface2);border-radius:3px;height:5px;overflow:hidden;position:relative}
+.progress-bar{height:100%;border-radius:3px;transition:.6s ease}
 
-/* ── Progress Bar ──────────────────────────────────────── */
-.progress-wrap{background:var(--surface2);border-radius:4px;height:6px;overflow:hidden}
-.progress-bar{height:100%;border-radius:4px;transition:.6s ease}
-.progress-green{background:var(--green)}
-.progress-blue{background:var(--blue)}
-.progress-yellow{background:var(--yellow)}
-
-/* ── Table ─────────────────────────────────────────────── */
-.table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{
-  text-align:left;padding:10px 12px;
-  font-family:var(--mono);font-size:11px;letter-spacing:.5px;
-  color:var(--muted);text-transform:uppercase;
-  border-bottom:1px solid var(--border);white-space:nowrap;
-}
-td{padding:9px 12px;border-bottom:1px solid var(--border2);vertical-align:middle}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(255,255,255,.02)}
-.td-mono{font-family:var(--mono);font-size:12px}
-.td-num{text-align:right;font-family:var(--mono);font-size:13px}
-
-/* ── Alert / Notice ────────────────────────────────────── */
-.alert{
-  padding:12px 14px;border-radius:var(--radius);margin-bottom:10px;
-  font-size:13px;display:flex;gap:10px;align-items:flex-start;
-  border-left:3px solid transparent;
-}
-.alert-red{background:var(--red-dim);border-left-color:var(--red);color:#ffa8a4}
-.alert-yellow{background:var(--yellow-dim);border-left-color:var(--yellow);color:#e8c87a}
-.alert-green{background:var(--green-dim);border-left-color:var(--green);color:#89e89e}
-.alert-blue{background:var(--blue-dim);border-left-color:var(--blue);color:#8dbaff}
-.alert-muted{background:var(--surface2);border-left-color:var(--border);color:var(--muted)}
-.alert-icon{font-size:16px;flex-shrink:0;margin-top:1px}
+/* ── Alerts ── */
+.alert{padding:11px 14px;border-radius:var(--r);margin-bottom:8px;font-size:13px;display:flex;gap:10px;align-items:flex-start;border-left:2px solid transparent}
+.alert-red{background:var(--red-dim);border-left-color:var(--red);color:#ffa0a0}
+.alert-yellow{background:var(--yellow-dim);border-left-color:var(--yellow);color:#e8c97a}
+.alert-green{background:var(--green-dim);border-left-color:var(--green);color:#7ee8b4}
+.alert-blue{background:var(--blue-dim);border-left-color:var(--blue);color:#8dc8ff}
+.alert-muted{background:var(--surface2);border-left-color:var(--border);color:var(--muted2)}
+.alert-icon{font-size:15px;flex-shrink:0;margin-top:1px}
 .alert strong{display:block;font-weight:600;margin-bottom:2px}
 
-/* ── Stat Grid ─────────────────────────────────────────── */
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
-.stat-card{
-  background:var(--surface2);border:1px solid var(--border2);
-  border-radius:var(--radius);padding:14px 16px;
-}
-.stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+/* ── Stat grid ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+.stat-card{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:14px 16px}
+.stat-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;font-family:var(--mono)}
 .stat-value{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text)}
 .stat-sub{font-size:11px;color:var(--muted);margin-top:3px}
 .stat-value.green{color:var(--green)}
@@ -218,225 +145,181 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .stat-value.yellow{color:var(--yellow)}
 .stat-value.red{color:var(--red)}
 
-/* ── Area table ────────────────────────────────────────── */
-.area-row{display:grid;grid-template-columns:1fr 80px 80px 120px;gap:8px;align-items:center;
-  padding:10px 0;border-bottom:1px solid var(--border2)}
+/* ── Table ── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:9px 12px;font-family:var(--mono);font-size:10px;letter-spacing:.5px;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--border2);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.015)}
+.td-mono{font-family:var(--mono);font-size:12px}
+.td-num{text-align:right;font-family:var(--mono)}
+
+/* ── Area row ── */
+.area-row{display:grid;grid-template-columns:1fr 70px 70px 130px;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--border2)}
 .area-row:last-child{border-bottom:none}
 .area-name{font-weight:500;font-size:13px}
-.area-nums{font-family:var(--mono);font-size:13px;text-align:right}
-.area-bar-wrap{display:flex;flex-direction:column;gap:3px}
-.area-bar-label{font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
+.area-nums{font-family:var(--mono);font-size:12px;text-align:right;color:var(--muted2)}
+.area-bar-label{font-size:10px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:3px;font-family:var(--mono)}
 
-/* ── Materia card ──────────────────────────────────────── */
-.materia-item{
-  padding:10px 12px;border-radius:6px;margin-bottom:6px;
-  background:var(--surface2);border:1px solid var(--border2);
-  display:flex;align-items:flex-start;gap:10px;
-  transition:var(--transition);
-}
-.materia-item:hover{border-color:var(--border);background:var(--surface)}
-.materia-item.priority{border-left:3px solid var(--orange)}
-.materia-item.in-horario{border-left:3px solid var(--blue)}
-.materia-clave{
-  font-family:var(--mono);font-size:11px;color:var(--muted);
-  background:var(--border2);padding:2px 6px;border-radius:4px;
-  white-space:nowrap;flex-shrink:0;
-}
+/* ── Materia items ── */
+.materia-item{padding:10px 12px;border-radius:var(--r);margin-bottom:6px;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:flex-start;gap:10px;transition:var(--tr)}
+.materia-item:hover{border-color:var(--border);background:var(--surface3)}
+.materia-item.priority{border-left:2px solid var(--orange)}
+.materia-item.in-horario{border-left:2px solid var(--blue)}
+.materia-clave{font-family:var(--mono);font-size:11px;color:var(--muted2);background:var(--border2);padding:2px 7px;border-radius:4px;white-space:nowrap;flex-shrink:0;margin-top:2px}
 .materia-nombre{font-weight:500;font-size:13px;flex:1}
 .materia-area{font-size:11px;color:var(--muted);margin-top:2px}
-.materia-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+.materia-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
 
-/* ── Horario builder ───────────────────────────────────── */
-.horario-item{
-  display:flex;align-items:center;gap:8px;padding:8px 10px;
-  background:var(--surface2);border:1px solid var(--border2);
-  border-radius:6px;margin-bottom:6px;
-}
-.horario-item .btn-ghost{margin-left:auto;flex-shrink:0}
+/* ── Horario item ── */
+.horario-item{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);margin-bottom:6px}
+.horario-item .btn-ghost{margin-left:auto;flex-shrink:0;color:var(--red);opacity:.6}
+.horario-item .btn-ghost:hover{opacity:1;background:var(--red-dim)}
 
-/* ── Search ────────────────────────────────────────────── */
-.search-result{
-  padding:14px;border-radius:var(--radius);margin-top:12px;
-  border:1px solid var(--border);background:var(--surface2);
-}
+/* ── Chips ── */
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.chip{padding:4px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted2);transition:var(--tr)}
+.chip:hover{border-color:var(--green);color:var(--green)}
+.chip.active{background:var(--green-dim);border-color:rgba(0,217,126,.3);color:var(--green)}
 
-/* ── Spinner / Loader ──────────────────────────────────── */
-.spinner{
-  width:20px;height:20px;border-radius:50%;
-  border:2px solid var(--border);border-top-color:var(--green);
-  animation:spin .7s linear infinite;display:inline-block;
-}
+/* ── Spinner / Loader ── */
+.spinner{width:18px;height:18px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--green);animation:spin .7s linear infinite;display:inline-block;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
-.loading-overlay{
-  position:fixed;inset:0;background:rgba(13,17,23,.7);
-  display:flex;align-items:center;justify-content:center;
-  z-index:9999;backdrop-filter:blur(4px);flex-direction:column;gap:14px;
-  font-family:var(--mono);font-size:14px;color:var(--green);
-}
+.loading-overlay{position:fixed;inset:0;background:rgba(10,12,16,.8);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(6px);flex-direction:column;gap:14px;font-family:var(--mono);font-size:13px;color:var(--green)}
 .loading-overlay.hidden{display:none}
 
-/* ── Toast ─────────────────────────────────────────────── */
+/* ── Toast ── */
 #toast-container{position:fixed;bottom:24px;right:24px;z-index:9000;display:flex;flex-direction:column;gap:8px}
-.toast{
-  padding:12px 16px;border-radius:var(--radius);font-size:13px;
-  min-width:260px;max-width:380px;
-  display:flex;align-items:center;gap:10px;
-  box-shadow:0 8px 32px rgba(0,0,0,.4);
-  animation:slide-in .2s ease;border:1px solid transparent;
-}
-.toast-green{background:#0e2a1a;border-color:var(--green);color:var(--green)}
-.toast-red{background:var(--red-dim);border-color:var(--red);color:#ffa8a4}
-.toast-blue{background:var(--blue-dim);border-color:var(--blue);color:#8dbaff}
+.toast{padding:11px 16px;border-radius:var(--r);font-size:13px;min-width:260px;max-width:360px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,.5);animation:slide-in .2s ease;border:1px solid transparent}
+.toast-green{background:#031a0e;border-color:rgba(0,217,126,.4);color:var(--green)}
+.toast-red{background:var(--red-dim);border-color:rgba(255,87,87,.4);color:#ff9090}
+.toast-blue{background:var(--blue-dim);border-color:rgba(77,159,255,.4);color:#90c4ff}
 @keyframes slide-in{from{transform:translateX(100%);opacity:0}to{transform:none;opacity:1}}
 
-/* ── Modal ─────────────────────────────────────────────── */
-.modal-backdrop{
-  position:fixed;inset:0;background:rgba(0,0,0,.6);
-  z-index:500;display:flex;align-items:center;justify-content:center;
-  padding:20px;backdrop-filter:blur(4px);
-}
+/* ── Modal ── */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
 .modal-backdrop.hidden{display:none}
-.modal{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:10px;width:100%;max-width:520px;
-  max-height:85vh;overflow-y:auto;
-}
-.modal-header{
-  padding:16px 20px;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;justify-content:space-between;
-}
-.modal-title{font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.5px}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:10px;width:100%;max-width:500px;max-height:88vh;overflow-y:auto}
+.modal-header{padding:15px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:.4px}
 .modal-body{padding:20px}
 .modal-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
 
-/* ── Sections ──────────────────────────────────────────── */
-.section-title{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+/* ── Upload & Steps ── */
+#welcome{max-width:720px;margin:0 auto;padding:20px 0}
+.steps-header{display:flex;align-items:center;gap:0;margin-bottom:32px}
+.step-indicator{display:flex;align-items:center;gap:0;flex:1}
+.step-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:700;border:2px solid var(--border);background:var(--surface2);color:var(--muted);transition:.3s ease;flex-shrink:0}
+.step-dot.active{border-color:var(--green);background:var(--green-dim);color:var(--green)}
+.step-dot.done{border-color:var(--green);background:var(--green);color:#000}
+.step-line{flex:1;height:2px;background:var(--border);transition:.3s ease}
+.step-line.done{background:var(--green)}
+.step-label{font-size:11px;color:var(--muted);text-align:center;margin-top:5px;font-family:var(--mono)}
+.step-block{display:flex;flex-direction:column;align-items:center;gap:0}
 
-/* ── Empty State ───────────────────────────────────────── */
-.empty{text-align:center;padding:40px;color:var(--muted);font-size:13px}
-.empty-icon{font-size:32px;display:block;margin-bottom:10px}
+.step-panel{display:none}
+.step-panel.active{display:block;animation:fadein .2s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
-/* ── Filter chips ──────────────────────────────────────── */
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-.chip{
-  padding:4px 12px;border-radius:20px;font-size:12px;cursor:pointer;
-  border:1px solid var(--border);background:transparent;color:var(--muted);
-  transition:var(--transition);
+/* Upload zone */
+#upload-zone{
+  border:2px dashed var(--border);border-radius:var(--r);
+  padding:40px 24px;text-align:center;cursor:pointer;
+  transition:var(--tr);position:relative;background:var(--surface2);
 }
-.chip:hover{border-color:var(--green);color:var(--green)}
-.chip.active{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+#upload-zone:hover,#upload-zone.drag-over{border-color:var(--green);background:rgba(0,217,126,.04)}
+#upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.upload-icon{font-size:36px;margin-bottom:12px;display:block}
+.upload-title{font-size:15px;font-weight:500;margin-bottom:5px}
+.upload-sub{color:var(--muted);font-size:12px}
 
-/* ── Welcome screen ────────────────────────────────────── */
-#welcome{text-align:center;padding:60px 20px}
-#welcome .wc-icon{font-size:56px;margin-bottom:20px;display:block}
-#welcome h1{font-family:var(--mono);font-size:28px;font-weight:700;margin-bottom:8px}
-#welcome p{color:var(--muted);max-width:500px;margin:0 auto 28px}
+/* Survey (encuesta) */
+.survey-section{margin-bottom:20px}
+.survey-title{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:10px}
+.orient-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.orient-card{
+  padding:12px 14px;border-radius:var(--r);border:2px solid var(--border);
+  background:var(--surface2);cursor:pointer;transition:var(--tr);
+  display:flex;align-items:center;gap:10px;
+}
+.orient-card:hover{border-color:var(--green);background:rgba(0,217,126,.04)}
+.orient-card.selected{border-color:var(--green);background:var(--green-dim)}
+.orient-card.selected .orient-name{color:var(--green)}
+.orient-icon{font-size:22px;flex-shrink:0}
+.orient-name{font-weight:500;font-size:13px}
+.orient-cod{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
 
-/* ── Alumno header ─────────────────────────────────────── */
+/* Horario inline */
+.horario-inline-add{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.horario-inline-add input{flex:1;min-width:80px}
+.horario-empty{text-align:center;padding:24px;color:var(--muted);font-size:12px;background:var(--surface2);border-radius:var(--r);border:1px dashed var(--border)}
+
+/* ── Dashboard ── */
 .alumno-header{
   background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);padding:18px 20px;margin-bottom:20px;
+  border-radius:var(--r);padding:18px 20px;margin-bottom:20px;
   display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;
 }
 .alumno-avatar{
-  width:46px;height:46px;border-radius:50%;
-  background:var(--green-dim);border:2px solid var(--green);
+  width:44px;height:44px;border-radius:50%;
+  background:var(--green-dim);border:2px solid rgba(0,217,126,.4);
   display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-size:18px;font-weight:700;color:var(--green);
-  flex-shrink:0;
+  font-family:var(--mono);font-size:17px;font-weight:700;color:var(--green);flex-shrink:0;
 }
 .alumno-info{flex:1;min-width:0}
-.alumno-nombre{font-size:17px;font-weight:700;margin-bottom:2px}
-.alumno-meta{font-size:12px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+.alumno-nombre{font-size:16px;font-weight:600;margin-bottom:3px}
+.alumno-meta{font-size:12px;color:var(--muted2);display:flex;gap:12px;flex-wrap:wrap}
 .alumno-meta span{display:flex;align-items:center;gap:4px}
 .alumno-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
-/* ── Responsive ────────────────────────────────────────── */
-@media(max-width:768px){
-  main{padding:14px}
-  .form-row,.grid-2,.grid-3{grid-template-columns:1fr}
-  .tabs{overflow-x:auto;gap:0}
-  .tab{padding:8px 12px;font-size:12px}
-  .alumno-header{flex-direction:column}
-}
-
-/* ── Utility ───────────────────────────────────────────── */
-.flex{display:flex;align-items:center}
-.gap-8{gap:8px}
-.gap-12{gap:12px}
-.ml-auto{margin-left:auto}
+/* Section spacing */
+.mb-16{margin-bottom:16px}
+.mb-20{margin-bottom:20px}
 .mt-12{margin-top:12px}
 .mt-16{margin-top:16px}
-.mt-20{margin-top:20px}
-.mb-0{margin-bottom:0}
-.mb-8{margin-bottom:8px}
-.mb-12{margin-bottom:12px}
-.text-green{color:var(--green)}
-.text-red{color:var(--red)}
-.text-yellow{color:var(--yellow)}
-.text-blue{color:var(--blue)}
+.flex{display:flex;align-items:center}
+.gap-8{gap:8px}
+.ml-auto{margin-left:auto}
+.hidden{display:none!important}
 .text-muted{color:var(--muted)}
-.text-mono{font-family:var(--mono)}
+.text-muted2{color:var(--muted2)}
+.text-green{color:var(--green)}
+.text-blue{color:var(--blue)}
 .text-sm{font-size:12px}
 .text-xs{font-size:11px}
-.fw-700{font-weight:700}
-.hidden{display:none!important}
-.separator{border:none;border-top:1px solid var(--border2);margin:16px 0}
+.text-mono{font-family:var(--mono)}
+.fw-600{font-weight:600}
+.empty{text-align:center;padding:32px;color:var(--muted);font-size:13px}
+.empty-icon{font-size:28px;display:block;margin-bottom:8px}
+.sep{border:none;border-top:1px solid var(--border2);margin:16px 0}
+
+/* Section label */
+.section-label{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border2)}
+
+@media(max-width:700px){
+  main{padding:14px}
+  .form-row,.orient-grid{grid-template-columns:1fr}
+  .area-row{grid-template-columns:1fr 60px 90px;gap:6px}
+  .area-row .area-nums:first-of-type{display:none}
+  .alumno-header{flex-direction:column}
+  .horario-inline-add{flex-direction:column}
+}
 </style>
 </head>
 <body>
 
-<!-- Loading Overlay -->
+<!-- Loader -->
 <div class="loading-overlay hidden" id="loader">
-  <div class="spinner" style="width:36px;height:36px;border-width:3px"></div>
-  <span id="loader-msg">Cargando...</span>
+  <div class="spinner" style="width:32px;height:32px;border-width:3px"></div>
+  <span id="loader-msg">Procesando...</span>
 </div>
 
-<!-- Toast Container -->
+<!-- Toasts -->
 <div id="toast-container"></div>
 
-<!-- Orientation Modal -->
-<div class="modal-backdrop hidden" id="modal-orientacion">
-  <div class="modal">
-    <div class="modal-header">
-      <span class="modal-title">🎓 CONFIGURACIÓN DE PERFIL</span>
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-orientacion')">✕</button>
-    </div>
-    <div class="modal-body">
-      <p class="text-muted text-sm mb-12">Configura tu perfil para que las sugerencias sean más precisas. Puedes cambiar esto después.</p>
-      <div class="form-group">
-        <label>Orientación elegida</label>
-        <select id="select-orientacion">
-          <option value="">— Sin definir —</option>
-          <option value="OT">Telecomunicaciones</option>
-          <option value="OO">Optoelectrónica</option>
-          <option value="OSE">Sistemas Embebidos</option>
-          <option value="OV">Visualización</option>
-          <option value="AG">General</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <p class="section-title">Actividades extracurriculares</p>
-        <div class="checkbox-row mb-8">
-          <input type="checkbox" id="chk-servicio" />
-          <label for="chk-servicio" style="margin:0">Ya realicé el Servicio Social</label>
-        </div>
-        <div class="checkbox-row">
-          <input type="checkbox" id="chk-practicas" />
-          <label for="chk-practicas" style="margin:0">Ya realicé Prácticas Profesionales</label>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('modal-orientacion')">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarPerfil()">💾 Guardar perfil</button>
-    </div>
-  </div>
-</div>
-
-<!-- Add Horario Item Modal -->
+<!-- Modal: agregar materia al horario -->
 <div class="modal-backdrop hidden" id="modal-horario">
   <div class="modal">
     <div class="modal-header">
@@ -444,21 +327,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-horario')">✕</button>
     </div>
     <div class="modal-body">
-      <p class="text-muted text-sm mb-12">Ingresa las materias que tienes registradas en tu horario actual. <strong>No</strong> se sumarán a tus créditos adquiridos, pero sí se tomarán en cuenta en las sugerencias.</p>
+      <p class="text-sm text-muted mb-16" style="margin-bottom:14px">Materias registradas este ciclo. No suman a créditos adquiridos pero sí se muestran en el análisis.</p>
       <div class="form-row">
-        <div class="form-group">
-          <label>Clave *</label>
-          <input type="text" id="h-clave" placeholder="I5890" style="text-transform:uppercase"/>
-        </div>
-        <div class="form-group">
-          <label>Créditos</label>
-          <input type="number" id="h-creditos" placeholder="6" min="0" max="12"/>
-        </div>
+        <div class="form-group"><label>Clave *</label><input type="text" id="h-clave" placeholder="I5890" style="text-transform:uppercase"/></div>
+        <div class="form-group"><label>Créditos</label><input type="number" id="h-creditos" placeholder="6" min="0" max="12"/></div>
       </div>
-      <div class="form-group">
-        <label>Nombre de la materia *</label>
-        <input type="text" id="h-nombre" placeholder="ELECTRONICA DIGITAL" style="text-transform:uppercase"/>
-      </div>
+      <div class="form-group"><label>Nombre *</label><input type="text" id="h-nombre" placeholder="ELECTRONICA DIGITAL" style="text-transform:uppercase"/></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-horario')">Cancelar</button>
@@ -467,27 +341,23 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 </div>
 
-<!-- Sugerir Materia Modal -->
+<!-- Modal: buscar equivalencia (dashboard) -->
 <div class="modal-backdrop hidden" id="modal-sugerir">
-  <div class="modal" style="max-width:600px">
+  <div class="modal" style="max-width:580px">
     <div class="modal-header">
       <span class="modal-title">🔍 BUSCAR / EQUIVALENCIA</span>
       <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-sugerir')">✕</button>
     </div>
     <div class="modal-body">
-      <p class="text-muted text-sm mb-12">Busca una materia por clave o nombre. Si no la encontramos, te mostraremos las materias del área para equivalencia.</p>
-      <div class="flex gap-8 mb-12">
-        <input type="text" id="sugerir-query" placeholder="Ej: I5890 o Electrónica Digital..." style="flex:1"/>
+      <div class="flex gap-8 mb-12" style="margin-bottom:12px">
+        <input type="text" id="sugerir-query" placeholder="Clave o nombre..." style="flex:1"/>
         <button class="btn btn-primary" onclick="buscarMateria()">Buscar</button>
       </div>
       <div id="sugerir-resultado"></div>
-      <!-- Area selector (mostrado si filtro 3) -->
-      <div id="sugerir-area-selector" class="hidden mt-12">
-        <label>¿A qué área pertenece esta materia?</label>
-        <select id="sugerir-area" onchange="buscarPorArea()">
-          <option value="">— Seleccionar área —</option>
-        </select>
-        <div id="sugerir-area-lista" class="mt-12"></div>
+      <div id="sugerir-area-selector" class="hidden mt-12" style="margin-top:12px">
+        <label>¿A qué área pertenece?</label>
+        <select id="sugerir-area" onchange="buscarPorArea()"><option value="">— Seleccionar área —</option></select>
+        <div id="sugerir-area-lista" style="margin-top:12px"></div>
       </div>
     </div>
   </div>
@@ -495,184 +365,288 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
 <!-- Header -->
 <header>
-  <a class="logo" href="#">
-    <span>SK</span>
-    <span class="logo-badge">UDG</span>
+  <a class="logo" href="#" onclick="showWelcome();return false">
+    <span>SK</span><span class="logo-pill">UDG</span>
   </a>
-  <span class="header-sub">Smartkardex — Sistema de Análisis Académico</span>
+  <div class="header-divider"></div>
+  <span class="header-sub">Smartkardex</span>
   <div class="header-right">
-    <button class="btn btn-ghost btn-sm" id="btn-new" onclick="showWelcome()" title="Cargar nuevo kárdex">+ Nuevo</button>
-    <button class="btn btn-ghost btn-sm" id="btn-perfil" onclick="openModal('modal-orientacion')" title="Configurar perfil" style="display:none">⚙️ Perfil</button>
+    <button class="btn btn-ghost btn-sm" id="btn-new" onclick="showWelcome()">+ Nuevo</button>
+    <button class="btn btn-secondary btn-sm hidden" id="btn-reanalizar" onclick="reanalizar()">🔄 Reanalizar</button>
   </div>
 </header>
 
 <main>
-  <!-- ── Welcome ── -->
-  <div id="welcome">
-    <span class="wc-icon">🎓</span>
-    <h1>Smartkardex</h1>
-    <p>Sube tu kárdex en PDF para analizar tu avance académico, recibir sugerencias de materias y detectar alertas institucionales.</p>
-    <div class="card" style="max-width:480px;margin:0 auto">
-      <div class="card-header">📄 CARGAR KÁRDEX PDF</div>
+
+<!-- ═══════════════════ WELCOME / STEPS ═══════════════════ -->
+<div id="welcome">
+
+  <!-- Steps indicator -->
+  <div style="display:flex;align-items:flex-start;gap:0;margin-bottom:32px;padding:0 10px">
+    <div class="step-block" style="flex:1">
+      <div class="step-dot active" id="dot-1">1</div>
+      <div class="step-label">Kárdex</div>
+    </div>
+    <div class="step-line" id="line-1" style="margin-top:14px"></div>
+    <div class="step-block" style="flex:1">
+      <div class="step-dot" id="dot-2">2</div>
+      <div class="step-label">Perfil</div>
+    </div>
+    <div class="step-line" id="line-2" style="margin-top:14px"></div>
+    <div class="step-block" style="flex:1">
+      <div class="step-dot" id="dot-3">3</div>
+      <div class="step-label">Horario</div>
+    </div>
+  </div>
+
+  <!-- ── PASO 1: Cargar PDF ── -->
+  <div class="step-panel active" id="step-1">
+    <div class="card">
+      <div class="card-header">📄 PASO 1 — CARGAR KÁRDEX PDF</div>
       <div class="card-body">
         <div id="upload-zone" onclick="document.getElementById('file-input').click()">
-          <input type="file" id="file-input" accept=".pdf" onchange="handleFileSelect(this)" />
+          <input type="file" id="file-input" accept=".pdf" onchange="handleFileSelect(this)"/>
           <span class="upload-icon">📂</span>
-          <div class="upload-title">Arrastra tu PDF aquí</div>
-          <div class="upload-sub">o haz clic para seleccionar • Solo archivos PDF</div>
+          <div class="upload-title">Arrastra tu kárdex aquí</div>
+          <div class="upload-sub">o haz clic para seleccionar · Solo archivos .pdf</div>
         </div>
-        <div class="mt-12 flex gap-8" style="justify-content:center">
+        <div style="display:flex;justify-content:flex-end;margin-top:14px">
           <button class="btn btn-primary" id="btn-upload" onclick="uploadKardex()" disabled>
             <span class="spinner hidden" id="upload-spinner" style="width:14px;height:14px;border-width:2px"></span>
-            Analizar kárdex
+            Subir kárdex →
           </button>
         </div>
-        <p class="text-muted text-xs mt-12" style="text-align:center">Tu PDF se procesa localmente en el servidor. No se comparte con terceros.</p>
+        <p class="text-xs text-muted" style="margin-top:10px;text-align:center">El PDF se procesa en el servidor. No se comparte con terceros.</p>
       </div>
     </div>
   </div>
 
-  <!-- ── Dashboard ── -->
-  <div id="dashboard" class="hidden">
-
-    <!-- Alumno header -->
-    <div class="alumno-header" id="alumno-header">
-      <div class="alumno-avatar" id="alumno-avatar">?</div>
-      <div class="alumno-info">
-        <div class="alumno-nombre" id="alumno-nombre">—</div>
-        <div class="alumno-meta" id="alumno-meta"></div>
-      </div>
-      <div class="alumno-actions">
-        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-orientacion')">⚙️ Perfil</button>
-        <button class="btn btn-secondary btn-sm" onclick="reanalizar()">🔄 Reanalizar</button>
-        <button class="btn btn-danger btn-sm" onclick="eliminarAlumno()">🗑 Borrar</button>
-      </div>
-    </div>
-
-    <!-- Stats -->
-    <div class="stats-grid" id="stats-grid"></div>
-
-    <!-- ── Sección 1: Alertas ── -->
-    <div class="card mb-16" id="sec-alertas" style="display:none">
-      <div class="card-header">⚠️ ALERTAS</div>
+  <!-- ── PASO 2: Encuesta de perfil ── -->
+  <div class="step-panel" id="step-2">
+    <div class="card">
+      <div class="card-header">🎓 PASO 2 — CUÉNTANOS SOBRE TI</div>
       <div class="card-body">
-        <div id="alertas-list"></div>
-      </div>
-    </div>
+        <p class="text-sm text-muted" style="margin-bottom:20px">Esta información personaliza tus sugerencias de materias. Puedes cambiarla después.</p>
 
-    <!-- ── Sección 2: Avance por área ── -->
-    <div class="card mb-16">
-      <div class="card-header">📊 AVANCE POR ÁREA DE FORMACIÓN</div>
-      <div class="card-body">
-        <div id="area-list"></div>
-      </div>
-    </div>
-
-    <!-- ── Sección 3: Horario actual ── -->
-    <div class="card mb-16">
-      <div class="card-header">
-        📅 HORARIO ACTUAL
-        <div class="ml-auto flex gap-8">
-          <span class="text-muted text-xs" id="horario-cal-label">—</span>
-          <button class="btn btn-primary btn-sm" onclick="openModal('modal-horario')">+ Agregar</button>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="form-row mb-12">
-          <div class="form-group mb-0">
-            <label>Calendario</label>
-            <input type="text" id="horario-calendario" placeholder="Ej: 2025-B"
-              oninput="document.getElementById('horario-cal-label').textContent=this.value||'—'" />
+        <!-- Orientación -->
+        <div class="survey-section">
+          <div class="survey-title">¿Cuál es tu orientación elegida?</div>
+          <div class="orient-grid" id="orient-grid">
+            <div class="orient-card" onclick="selectOrient('OT',this)">
+              <span class="orient-icon">📡</span>
+              <div><div class="orient-name">Telecomunicaciones</div><div class="orient-cod">OT</div></div>
+            </div>
+            <div class="orient-card" onclick="selectOrient('OO',this)">
+              <span class="orient-icon">💡</span>
+              <div><div class="orient-name">Optoelectrónica</div><div class="orient-cod">OO</div></div>
+            </div>
+            <div class="orient-card" onclick="selectOrient('OSE',this)">
+              <span class="orient-icon">🔧</span>
+              <div><div class="orient-name">Sistemas Embebidos</div><div class="orient-cod">OSE</div></div>
+            </div>
+            <div class="orient-card" onclick="selectOrient('OV',this)">
+              <span class="orient-icon">🖥️</span>
+              <div><div class="orient-name">Visualización</div><div class="orient-cod">OV</div></div>
+            </div>
+            <div class="orient-card" onclick="selectOrient('AG',this)">
+              <span class="orient-icon">🌐</span>
+              <div><div class="orient-name">General</div><div class="orient-cod">AG</div></div>
+            </div>
+            <div class="orient-card" onclick="selectOrient('',this)" style="border-style:dashed">
+              <span class="orient-icon">⏭️</span>
+              <div><div class="orient-name">Sin definir</div><div class="orient-cod">—</div></div>
+            </div>
           </div>
-          <div></div>
         </div>
-        <div id="horario-items">
-          <div class="empty"><span class="empty-icon">📭</span>Sin materias en el horario.</div>
+
+        <!-- Actividades -->
+        <div class="survey-section" style="margin-top:20px">
+          <div class="survey-title">Actividades realizadas</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <label class="checkbox-row">
+              <input type="checkbox" id="chk-servicio"/>
+              <span>✅ Ya realicé el <strong>Servicio Social</strong></span>
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" id="chk-practicas"/>
+              <span>✅ Ya realicé <strong>Prácticas Profesionales</strong></span>
+            </label>
+          </div>
         </div>
-        <div class="flex gap-8 mt-12">
-          <span class="text-muted text-sm" id="horario-creditos-label">0 créditos en horario</span>
-          <button class="btn btn-primary btn-sm ml-auto" onclick="guardarHorario()">💾 Guardar horario</button>
+
+        <div style="display:flex;justify-content:space-between;margin-top:20px">
+          <button class="btn btn-ghost" onclick="goStep(1)">← Atrás</button>
+          <button class="btn btn-primary" onclick="goStep(3)">Continuar →</button>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- ── Sección 4: Materias disponibles ── -->
-    <div class="card mb-16">
-      <div class="card-header">
-        ✅ MATERIAS DISPONIBLES
-        <div class="ml-auto">
-          <button class="btn btn-secondary btn-sm" onclick="openModal('modal-sugerir')">🔍 Buscar equivalencia</button>
-        </div>
-      </div>
+  <!-- ── PASO 3: Horario actual ── -->
+  <div class="step-panel" id="step-3">
+    <div class="card">
+      <div class="card-header">📅 PASO 3 — HORARIO ACTUAL (opcional)</div>
       <div class="card-body">
-        <div class="chips mb-12" id="filter-chips">
-          <button class="chip active" onclick="filterDisponibles('all')">Todas</button>
-          <button class="chip" onclick="filterDisponibles('priority')">⚡ Prioritarias</button>
-          <button class="chip" onclick="filterDisponibles('BC')">Básico Común</button>
-          <button class="chip" onclick="filterDisponibles('BPO')">Bás. Particular</button>
-          <button class="chip" onclick="filterDisponibles('EO')">Esp. Obligatoria</button>
-          <button class="chip" onclick="filterDisponibles('ES')">Esp. Selectiva</button>
-          <button class="chip" onclick="filterDisponibles('OA')">Optativa</button>
-        </div>
-        <div id="disponibles-list"></div>
-      </div>
-    </div>
+        <p class="text-sm text-muted" style="margin-bottom:16px">Agrega las materias que tienes registradas este ciclo. <strong>No</strong> suman a tus créditos adquiridos, pero sí aparecen en el análisis.</p>
 
-    <!-- ── Sección 5: Materias bloqueadas ── -->
-    <div class="card mb-16">
-      <div class="card-header">🔒 MATERIAS BLOQUEADAS POR PRERREQUISITO</div>
-      <div class="card-body">
-        <p class="text-muted text-sm mb-12">Estas materias no están disponibles porque falta aprobar algún prerrequisito.</p>
-        <div id="bloqueadas-list"></div>
-      </div>
-    </div>
-
-    <!-- ── Sección 6: Buscar / Equivalencia ── -->
-    <div class="card mb-16">
-      <div class="card-header">🔍 BUSCAR MATERIA / EQUIVALENCIA</div>
-      <div class="card-body">
-        <p class="text-muted text-sm mb-12">Busca por <strong>clave exacta</strong> (ej: I5890) o por <strong>nombre similar</strong>. Si no se encuentra, elige el área y te mostramos las materias disponibles para equivalencia.</p>
-        <div class="flex gap-8 mb-0">
-          <input type="text" id="tab-sugerir-query" placeholder="Clave o nombre de la materia..." style="flex:1"
-            onkeydown="if(event.key==='Enter')buscarMateriaTab()"/>
-          <button class="btn btn-primary" onclick="buscarMateriaTab()">Buscar</button>
+        <div class="form-group" style="max-width:220px;margin-bottom:16px">
+          <label>Calendario actual</label>
+          <input type="text" id="horario-calendario" placeholder="Ej: 2025-B"/>
         </div>
-        <div id="tab-sugerir-resultado" class="mt-12"></div>
-        <div id="tab-sugerir-area-selector" class="hidden mt-12">
-          <label>¿A qué área pertenece esta materia?</label>
-          <select id="tab-sugerir-area" onchange="buscarPorAreaTab()">
-            <option value="">— Seleccionar área —</option>
-          </select>
-          <div id="tab-sugerir-area-lista" class="mt-12"></div>
+
+        <!-- Agregar materia inline -->
+        <div class="horario-inline-add">
+          <input type="text" id="h2-clave" placeholder="Clave (I5890)" style="max-width:120px;text-transform:uppercase"/>
+          <input type="text" id="h2-nombre" placeholder="Nombre de la materia" style="flex:1;text-transform:uppercase"/>
+          <input type="number" id="h2-creditos" placeholder="Cr" style="max-width:70px" min="0" max="12"/>
+          <button class="btn btn-secondary" onclick="agregarHorarioInline()">➕</button>
+        </div>
+
+        <!-- Lista de materias en horario -->
+        <div id="horario-step-items">
+          <div class="horario-empty">📭 Sin materias — puedes saltarte este paso</div>
+        </div>
+
+        <div id="horario-step-total" class="text-xs text-muted" style="margin-top:8px;font-family:var(--mono)">0 créditos en horario</div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:20px">
+          <button class="btn btn-ghost" onclick="goStep(2)">← Atrás</button>
+          <button class="btn btn-primary" id="btn-analizar" onclick="finalizarCarga()">
+            <span class="spinner hidden" id="analizar-spinner" style="width:14px;height:14px;border-width:2px"></span>
+            Ver análisis →
+          </button>
         </div>
       </div>
     </div>
+  </div>
 
-  </div><!-- /dashboard -->
+</div><!-- /welcome -->
+
+<!-- ═══════════════════ DASHBOARD ═══════════════════ -->
+<div id="dashboard" class="hidden">
+
+  <!-- Alumno header -->
+  <div class="alumno-header" id="alumno-header">
+    <div class="alumno-avatar" id="alumno-avatar">?</div>
+    <div class="alumno-info">
+      <div class="alumno-nombre" id="alumno-nombre">—</div>
+      <div class="alumno-meta" id="alumno-meta"></div>
+    </div>
+    <div class="alumno-actions">
+      <button class="btn btn-secondary btn-sm" onclick="showEditPerfil()">⚙️ Editar perfil</button>
+      <button class="btn btn-danger btn-sm" onclick="eliminarAlumno()">🗑</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid" id="stats-grid"></div>
+
+  <!-- SECCIÓN: Alertas -->
+  <div class="card mb-16" id="sec-alertas" style="display:none;margin-bottom:16px">
+    <div class="card-header">⚠️ ALERTAS INSTITUCIONALES</div>
+    <div class="card-body"><div id="alertas-list"></div></div>
+  </div>
+
+  <!-- SECCIÓN: Avance por área -->
+  <div class="card mb-16" style="margin-bottom:16px">
+    <div class="card-header">📊 AVANCE POR ÁREA DE FORMACIÓN</div>
+    <div class="card-body"><div id="area-list"></div></div>
+  </div>
+
+  <!-- SECCIÓN: Horario actual (editable en dashboard) -->
+  <div class="card mb-16" style="margin-bottom:16px">
+    <div class="card-header">
+      📅 HORARIO ACTUAL
+      <div class="ml-auto flex gap-8">
+        <span class="text-muted text-xs text-mono" id="horario-cal-label">—</span>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-horario')">+ Agregar</button>
+        <button class="btn btn-primary btn-sm" onclick="guardarHorario()">💾 Guardar</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="form-group" style="max-width:200px;margin-bottom:14px">
+        <label>Calendario</label>
+        <input type="text" id="horario-calendario-dash" placeholder="2025-B"
+          oninput="document.getElementById('horario-cal-label').textContent=this.value||'—'"/>
+      </div>
+      <div id="horario-items">
+        <div class="empty"><span class="empty-icon">📭</span>Sin materias en el horario</div>
+      </div>
+      <div class="text-xs text-muted text-mono" id="horario-creditos-label" style="margin-top:8px">0 créditos en horario</div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN: Materias disponibles -->
+  <div class="card mb-16" style="margin-bottom:16px">
+    <div class="card-header">
+      ✅ MATERIAS DISPONIBLES
+      <div class="ml-auto">
+        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-sugerir')">🔍 Equivalencia</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="chips" id="filter-chips">
+        <button class="chip active" onclick="filterDisponibles('all',event)">Todas</button>
+        <button class="chip" onclick="filterDisponibles('priority',event)">⚡ Prioritarias</button>
+        <button class="chip" onclick="filterDisponibles('BC',event)">Básico Común</button>
+        <button class="chip" onclick="filterDisponibles('BPO',event)">Bás. Particular</button>
+        <button class="chip" onclick="filterDisponibles('EO',event)">Esp. Obligatoria</button>
+        <button class="chip" onclick="filterDisponibles('ES',event)">Esp. Selectiva</button>
+        <button class="chip" onclick="filterDisponibles('OA',event)">Optativa</button>
+      </div>
+      <div id="disponibles-list"></div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN: Bloqueadas -->
+  <div class="card mb-16" style="margin-bottom:16px">
+    <div class="card-header">🔒 BLOQUEADAS POR PRERREQUISITO</div>
+    <div class="card-body">
+      <p class="text-sm text-muted" style="margin-bottom:12px">No disponibles hasta aprobar el prerrequisito indicado.</p>
+      <div id="bloqueadas-list"></div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN: Buscar equivalencia inline -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header">🔍 BUSCAR MATERIA / EQUIVALENCIA</div>
+    <div class="card-body">
+      <div class="flex gap-8" style="margin-bottom:12px">
+        <input type="text" id="tab-sugerir-query" placeholder="Clave o nombre..." style="flex:1"
+          onkeydown="if(event.key==='Enter')buscarMateriaTab()"/>
+        <button class="btn btn-primary" onclick="buscarMateriaTab()">Buscar</button>
+      </div>
+      <div id="tab-sugerir-resultado"></div>
+      <div id="tab-sugerir-area-selector" class="hidden" style="margin-top:12px">
+        <label>¿A qué área pertenece?</label>
+        <select id="tab-sugerir-area" onchange="buscarPorAreaTab()"><option value="">— Seleccionar área —</option></select>
+        <div id="tab-sugerir-area-lista" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /dashboard -->
 </main>
 
 <script>
-/* ════════════════════════════════════════════════════════
-   STATE
-════════════════════════════════════════════════════════ */
-const API = '';
-let state = {
-  codigo: null,
-  analisis: null,
-  horario: [],       // lista temporal local
-  filtroArea: 'all',
+/* ══════════════════════ STATE ══════════════════════ */
+const API='';
+let state={
+  codigo:null,
+  analisis:null,
+  horario:[],
+  filtroArea:'all',
+  orientacionSeleccionada:'',
 };
 
-/* ════════════════════════════════════════════════════════
-   UTILS
-════════════════════════════════════════════════════════ */
-function showLoader(msg='Procesando...'){
+/* ══════════════════════ UTILS ══════════════════════ */
+function showLoader(m='Procesando...'){
   document.getElementById('loader').classList.remove('hidden');
-  document.getElementById('loader-msg').textContent=msg;
+  document.getElementById('loader-msg').textContent=m;
 }
 function hideLoader(){document.getElementById('loader').classList.add('hidden')}
 
-function toast(msg, type='green', dur=3500){
+function toast(msg,type='green',dur=3500){
   const c=document.getElementById('toast-container');
   const t=document.createElement('div');
   t.className=`toast toast-${type}`;
@@ -680,28 +654,41 @@ function toast(msg, type='green', dur=3500){
   c.appendChild(t);
   setTimeout(()=>t.remove(),dur);
 }
-
 function openModal(id){document.getElementById(id).classList.remove('hidden')}
 function closeModal(id){document.getElementById(id).classList.add('hidden')}
+function initials(n=''){return(n||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?'}
+function pctColor(p){return p>=100?'var(--green)':p>=70?'var(--blue)':p>=40?'var(--yellow)':'var(--red)'}
 
-function switchTab(id){ /* tabs eliminados, layout vertical */ }
+/* ══════════════════════ STEPS ══════════════════════ */
+let currentStep=1;
 
-function initials(name=''){
-  return (name||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?';
+function goStep(n){
+  document.querySelectorAll('.step-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById(`step-${n}`).classList.add('active');
+  // Update dots
+  for(let i=1;i<=3;i++){
+    const dot=document.getElementById(`dot-${i}`);
+    dot.classList.remove('active','done');
+    if(i<n) dot.classList.add('done'),dot.textContent='✓';
+    else if(i===n) dot.classList.add('active'),dot.textContent=i;
+    else dot.textContent=i;
+  }
+  for(let i=1;i<=2;i++){
+    const line=document.getElementById(`line-${i}`);
+    line.classList.toggle('done',n>i);
+  }
+  currentStep=n;
 }
 
-function pctColor(pct){
-  if(pct>=100)return'var(--green)';
-  if(pct>=70)return'var(--blue)';
-  if(pct>=40)return'var(--yellow)';
-  return'var(--red)';
+/* ══════════════════════ ORIENTACIÓN ══════════════════════ */
+function selectOrient(cod,el){
+  state.orientacionSeleccionada=cod;
+  document.querySelectorAll('.orient-card').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
 }
 
-/* ════════════════════════════════════════════════════════
-   UPLOAD & LOAD
-════════════════════════════════════════════════════════ */
+/* ══════════════════════ UPLOAD ══════════════════════ */
 let selectedFile=null;
-
 const uploadZone=document.getElementById('upload-zone');
 uploadZone.addEventListener('dragover',e=>{e.preventDefault();uploadZone.classList.add('drag-over')});
 uploadZone.addEventListener('dragleave',()=>uploadZone.classList.remove('drag-over'));
@@ -719,18 +706,18 @@ function handleFileSelect(input){
 
 function setFileReady(f){
   uploadZone.innerHTML=`
-    <input type="file" id="file-input" accept=".pdf" onchange="handleFileSelect(this)" />
+    <input type="file" id="file-input" accept=".pdf" onchange="handleFileSelect(this)"/>
     <span class="upload-icon">✅</span>
     <div class="upload-title">${f.name}</div>
-    <div class="upload-sub">${(f.size/1024).toFixed(1)} KB • listo para analizar</div>`;
+    <div class="upload-sub">${(f.size/1024).toFixed(1)} KB · listo para subir</div>`;
   document.getElementById('btn-upload').disabled=false;
 }
 
 async function uploadKardex(){
   if(!selectedFile){toast('Selecciona un PDF primero','red');return}
   showLoader('Procesando kárdex...');
-  const sp=document.getElementById('upload-spinner');
-  sp.classList.remove('hidden');
+  document.getElementById('upload-spinner').classList.remove('hidden');
+  document.getElementById('btn-upload').disabled=true;
   const fd=new FormData();
   fd.append('pdf',selectedFile);
   try{
@@ -738,20 +725,108 @@ async function uploadKardex(){
     const d=await r.json();
     if(d.ok&&d.alumno){
       state.codigo=d.alumno.codigo;
-      toast(`Kárdex de ${d.alumno.nombre} cargado correctamente`,'green');
-      await cargarDashboard();
-      // Si es primera vez → pedir perfil
-      if(!d.alumno.orientacion_elegida){
-        setTimeout(()=>openModal('modal-orientacion'),700);
+      toast(`Kárdex de ${d.alumno.nombre} cargado`,'green');
+      // Precargar orientación si ya tiene
+      if(d.alumno.orientacion_elegida){
+        state.orientacionSeleccionada=d.alumno.orientacion_elegida;
+        document.querySelectorAll('.orient-card').forEach(c=>{
+          if(c.querySelector('.orient-cod')?.textContent===d.alumno.orientacion_elegida)
+            c.classList.add('selected');
+        });
       }
+      if(d.alumno.servicio_social) document.getElementById('chk-servicio').checked=true;
+      if(d.alumno.practicas_profesionales) document.getElementById('chk-practicas').checked=true;
+      goStep(2);
     } else {
       toast(d.error||'Error al procesar el PDF','red');
     }
   }catch(e){toast('Error de conexión','red')}
-  finally{hideLoader();sp.classList.add('hidden')}
+  finally{
+    hideLoader();
+    document.getElementById('upload-spinner').classList.add('hidden');
+    document.getElementById('btn-upload').disabled=false;
+  }
 }
 
-async function cargarDashboard(){
+/* ══════════════════════ HORARIO INLINE (PASO 3) ══════════════════════ */
+function agregarHorarioInline(){
+  const clave=document.getElementById('h2-clave').value.trim().toUpperCase();
+  const nombre=document.getElementById('h2-nombre').value.trim().toUpperCase();
+  const creditos=parseInt(document.getElementById('h2-creditos').value)||0;
+  if(!clave||!nombre){toast('Clave y nombre requeridos','red');return}
+  if(state.horario.find(h=>h.clave===clave)){toast('Esa clave ya está','red');return}
+  state.horario.push({clave,nombre,creditos});
+  document.getElementById('h2-clave').value='';
+  document.getElementById('h2-nombre').value='';
+  document.getElementById('h2-creditos').value='';
+  document.getElementById('h2-clave').focus();
+  renderHorarioStep();
+  toast(`${clave} agregada`,'green');
+}
+
+function quitarHorarioStep(clave){
+  state.horario=state.horario.filter(h=>h.clave!==clave);
+  renderHorarioStep();
+}
+
+function renderHorarioStep(){
+  const el=document.getElementById('horario-step-items');
+  const total=state.horario.reduce((s,h)=>s+h.creditos,0);
+  document.getElementById('horario-step-total').textContent=`${total} créditos en horario`;
+  if(!state.horario.length){
+    el.innerHTML='<div class="horario-empty">📭 Sin materias — puedes saltarte este paso</div>';
+    return;
+  }
+  el.innerHTML=state.horario.map(h=>`
+    <div class="horario-item">
+      <span class="materia-clave">${h.clave}</span>
+      <span style="flex:1;font-weight:500;font-size:13px">${h.nombre}</span>
+      <span class="badge badge-blue">${h.creditos} cr</span>
+      <button class="btn btn-ghost btn-sm" onclick="quitarHorarioStep('${h.clave}')" title="Quitar">✕</button>
+    </div>`).join('');
+}
+
+/* ══════════════════════ FINALIZAR CARGA ══════════════════════ */
+async function finalizarCarga(){
+  if(!state.codigo){toast('Sube el kárdex primero','red');goStep(1);return}
+
+  const sp=document.getElementById('analizar-spinner');
+  sp.classList.remove('hidden');
+  document.getElementById('btn-analizar').disabled=true;
+  showLoader('Guardando perfil y analizando...');
+
+  try{
+    // 1. Guardar perfil (orientación, servicio, prácticas)
+    const ori=state.orientacionSeleccionada;
+    const ss=document.getElementById('chk-servicio').checked;
+    const pr=document.getElementById('chk-practicas').checked;
+    await fetch(`${API}/api/alumnos/${state.codigo}/perfil`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({orientacion:ori,servicio_social:ss,practicas:pr})
+    });
+
+    // 2. Guardar horario si hay materias
+    const cal=document.getElementById('horario-calendario').value.trim()||'SIN-CALENDARIO';
+    if(state.horario.length>0){
+      await fetch(`${API}/api/alumnos/${state.codigo}/horario`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({calendario:cal,materias:state.horario})
+      });
+    }
+
+    // 3. Cargar dashboard
+    await cargarDashboard(cal);
+
+  }catch(e){toast('Error al finalizar carga','red')}
+  finally{
+    sp.classList.add('hidden');
+    document.getElementById('btn-analizar').disabled=false;
+    hideLoader();
+  }
+}
+
+/* ══════════════════════ DASHBOARD ══════════════════════ */
+async function cargarDashboard(calActual){
   if(!state.codigo)return;
   showLoader('Analizando datos...');
   try{
@@ -759,32 +834,19 @@ async function cargarDashboard(){
     const d=await r.json();
     if(d.error){toast(d.error,'red');return}
     state.analisis=d;
-    renderDashboard(d);
-    // Cargar horario guardado
-    await cargarHorarioRemoto();
+    renderDashboard(d,calActual);
+    // Sincronizar horario en dashboard
+    if(calActual){
+      document.getElementById('horario-calendario-dash').value=calActual;
+      document.getElementById('horario-cal-label').textContent=calActual;
+    }
+    renderHorarioDash();
     document.getElementById('welcome').classList.add('hidden');
     document.getElementById('dashboard').classList.remove('hidden');
-    document.getElementById('btn-perfil').style.display='';
+    document.getElementById('btn-reanalizar').classList.remove('hidden');
+    window.scrollTo({top:0,behavior:'smooth'});
   }catch(e){toast('Error al cargar análisis','red')}
   finally{hideLoader()}
-}
-
-async function cargarHorarioRemoto(){
-  try{
-    const r=await fetch(`${API}/api/alumnos/${state.codigo}/horario`);
-    const d=await r.json();
-    if(Array.isArray(d)){
-      state.horario=d.map(h=>({clave:h.clave,nombre:h.nombre,creditos:h.creditos||0,calendario:h.calendario}));
-      renderHorario();
-    }
-  }catch(e){}
-}
-
-function showWelcome(){
-  document.getElementById('dashboard').classList.add('hidden');
-  document.getElementById('welcome').classList.remove('hidden');
-  document.getElementById('btn-perfil').style.display='none';
-  state.codigo=null;state.analisis=null;
 }
 
 async function reanalizar(){
@@ -796,9 +858,19 @@ async function reanalizar(){
     if(d.error){toast(d.error,'red');return}
     state.analisis=d;
     renderDashboard(d);
+    renderHorarioDash();
     toast('Análisis actualizado','green');
   }catch(e){toast('Error','red')}
   finally{hideLoader()}
+}
+
+function showWelcome(){
+  document.getElementById('dashboard').classList.add('hidden');
+  document.getElementById('welcome').classList.remove('hidden');
+  document.getElementById('btn-reanalizar').classList.add('hidden');
+  state.codigo=null;state.analisis=null;state.horario=[];
+  state.orientacionSeleccionada='';
+  goStep(1);
 }
 
 async function eliminarAlumno(){
@@ -814,23 +886,28 @@ async function eliminarAlumno(){
   finally{hideLoader()}
 }
 
-/* ════════════════════════════════════════════════════════
-   RENDER DASHBOARD
-════════════════════════════════════════════════════════ */
-function renderDashboard(d){
+/* ── Perfil rápido (desde dashboard) ── */
+function showEditPerfil(){
+  // Usa el horario modal para mostrar orientación rápida, o simplemente volvemos al paso 2
+  if(!confirm('¿Quieres volver al flujo de configuración de perfil?'))return;
+  document.getElementById('dashboard').classList.add('hidden');
+  document.getElementById('welcome').classList.remove('hidden');
+  goStep(2);
+}
+
+/* ══════════════════════ RENDER DASHBOARD ══════════════════════ */
+function renderDashboard(d,calActual){
   const al=d.alumno||{};
-  const ini=initials(al.nombre);
-  document.getElementById('alumno-avatar').textContent=ini;
+  document.getElementById('alumno-avatar').textContent=initials(al.nombre);
   document.getElementById('alumno-nombre').textContent=al.nombre||'Alumno';
   document.getElementById('alumno-meta').innerHTML=`
     <span>🎓 ${al.carrera||'N/D'}</span>
     <span class="text-mono">#${al.codigo||'—'}</span>
-    <span>📅 Último ciclo: ${al.ultimo_ciclo||'—'}</span>
+    <span>📅 ${al.ultimo_ciclo||'—'}</span>
     <span>${situacionBadge(al.situacion)}</span>
     ${al.orientacion_elegida?`<span>🧭 ${oriNombre(al.orientacion_elegida)}</span>`:''}
   `;
 
-  // Stats
   const credAdq=d.creditos_propios||al.creditos_adquiridos||0;
   const credReq=al.creditos_requeridos||423;
   const pct=(credAdq/credReq*100).toFixed(1);
@@ -838,30 +915,30 @@ function renderDashboard(d){
 
   document.getElementById('stats-grid').innerHTML=`
     <div class="stat-card">
-      <div class="stat-label">Créditos (propio)</div>
+      <div class="stat-label">Créditos</div>
       <div class="stat-value ${credAdq>=credReq?'green':''}">${credAdq}</div>
-      <div class="stat-sub">de ${credReq} requeridos (${pct}%)</div>
+      <div class="stat-sub">de ${credReq} (${pct}%)</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Promedio</div>
       <div class="stat-value ${(al.promedio||0)>=70?'green':'red'}">${(al.promedio||0).toFixed(2)}</div>
-      <div class="stat-sub">Mínimo aprobatorio: 60</div>
+      <div class="stat-sub">Mín aprobatorio: 60</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Materias disponibles</div>
+      <div class="stat-label">Disponibles</div>
       <div class="stat-value blue">${(d.disponibles||[]).length}</div>
       <div class="stat-sub">${(d.disponibles||[]).filter(m=>m.prioritaria).length} prioritarias</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Alertas activas</div>
+      <div class="stat-label">Alertas</div>
       <div class="stat-value ${alertasCrit>0?'red':'green'}">${(d.alertas||[]).length}</div>
       <div class="stat-sub">${alertasCrit} críticas</div>
     </div>
-    ${d.discrepancia_creditos!==0?`
+    ${d.discrepancia_creditos&&d.discrepancia_creditos!==0?`
     <div class="stat-card" style="border-color:var(--yellow)">
-      <div class="stat-label" style="color:var(--yellow)">Discrepancia créditos</div>
+      <div class="stat-label" style="color:var(--yellow)">Discrepancia</div>
       <div class="stat-value yellow">${d.discrepancia_creditos>0?'+':''}${d.discrepancia_creditos}</div>
-      <div class="stat-sub">Kárdex vs conteo propio</div>
+      <div class="stat-sub">Kárdex vs conteo</div>
     </div>`:''}
   `;
 
@@ -869,21 +946,15 @@ function renderDashboard(d){
   renderAlertas(d.alertas||[]);
   renderDisponibles(d.disponibles||[]);
   renderBloqueadas(d.bloqueadas||[]);
-
-  // Populate perfil modal
-  if(al.orientacion_elegida)document.getElementById('select-orientacion').value=al.orientacion_elegida;
-  document.getElementById('chk-servicio').checked=!!(al.servicio_social);
-  document.getElementById('chk-practicas').checked=!!(al.practicas_profesionales);
 }
 
 function situacionBadge(s){
-  const map={ACTIVO:'badge-green',BAJA:'badge-red',EGRESADO:'badge-blue',TITULADO:'badge-blue'};
-  return`<span class="badge ${map[s]||'badge-muted'}">${s||'—'}</span>`;
+  const m={ACTIVO:'badge-green',BAJA:'badge-red',EGRESADO:'badge-blue',TITULADO:'badge-blue'};
+  return`<span class="badge ${m[s]||'badge-muted'}">${s||'—'}</span>`;
 }
-
-function oriNombre(cod){
+function oriNombre(c){
   const m={OT:'Telecomunicaciones',OO:'Optoelectrónica',OSE:'Sistemas Embebidos',OV:'Visualización',AG:'General',OH:'Humanidades'};
-  return m[cod]||cod;
+  return m[c]||c;
 }
 
 /* ── Areas ── */
@@ -894,23 +965,26 @@ function renderAreas(areas){
     const req=a.requeridos_oficial||a.creditos_plan||0;
     const adq=a.creditos_aprobados||0;
     const hor=a.creditos_en_horario||0;
-    const pct=req>0?Math.min(100,(adq/req*100)):0;
-    const pctHor=req>0?Math.min(100,((adq+hor)/req*100)):0;
+    const pct=req>0?Math.min(100,adq/req*100):0;
+    const pctHor=req>0?Math.min(100,(adq+hor)/req*100):0;
     const color=pctColor(pct);
     const completa=adq>=req;
     return`
     <div class="area-row">
       <div>
-        <div class="area-name">${a.area||a.area_cod} ${completa?'<span class="badge badge-green" style="font-size:10px">✓ Completa</span>':''}</div>
-        <div class="text-xs text-muted">${a.aprobadas||0} de ${a.total_plan||0} materias aprobadas${hor>0?` · <span class="text-blue">${hor} cr en horario</span>`:''}</div>
+        <div class="area-name">${a.area||a.area_cod} ${completa?'<span class="badge badge-green" style="font-size:10px">✓</span>':''}</div>
+        <div class="text-xs text-muted">${a.aprobadas||0}/${a.total_plan||0} materias${hor>0?` · <span class="text-blue">${hor} cr en horario</span>`:''}</div>
       </div>
-      <div class="area-nums text-muted">${adq}</div>
-      <div class="area-nums">${req}</div>
-      <div class="area-bar-wrap">
-        <div class="area-bar-label"><span style="color:${color}">${pct.toFixed(0)}%</span>${hor>0?`<span class="text-blue">${pctHor.toFixed(0)}% c/horario</span>`:''}</div>
-        <div class="progress-wrap" style="position:relative">
+      <div class="area-nums">${adq}</div>
+      <div class="area-nums" style="color:var(--muted)">${req}</div>
+      <div>
+        <div class="area-bar-label">
+          <span style="color:${color}">${pct.toFixed(0)}%</span>
+          ${hor>0?`<span class="text-blue">${pctHor.toFixed(0)}% c/horario</span>`:''}
+        </div>
+        <div class="progress-wrap">
           <div class="progress-bar" style="width:${pct}%;background:${color}"></div>
-          ${hor>0?`<div style="position:absolute;top:0;left:${pct}%;width:${Math.min(pctHor-pct,100-pct)}%;height:100%;background:var(--blue);opacity:.5;border-radius:0 4px 4px 0"></div>`:''}
+          ${hor>0?`<div style="position:absolute;top:0;left:${pct}%;width:${Math.min(pctHor-pct,100-pct)}%;height:100%;background:var(--blue);opacity:.4;border-radius:0 3px 3px 0"></div>`:''}
         </div>
       </div>
     </div>`;
@@ -920,66 +994,34 @@ function renderAreas(areas){
 /* ── Alertas ── */
 function renderAlertas(alertas){
   const el=document.getElementById('alertas-list');
-  // Mostrar/ocultar sección de alertas
-  const secAlertas=document.getElementById('sec-alertas');
-  if(secAlertas) secAlertas.style.display=alertas.length>0?'':'none';
-
-  if(!alertas.length){el.innerHTML='<div class="alert alert-green"><span class="alert-icon">✅</span><div>Sin alertas activas. ¡Todo en orden!</div></div>';return}
-
-  const tipoClass={
-    ARTICULO_33_CONSECUTIVO:'alert-red',
-    ARTICULO_33:'alert-red',
-    DISCREPANCIA_CREDITOS:'alert-yellow',
-    DISCREPANCIA_AREA:'alert-yellow',
-    RECORDATORIO_REPROBADA:'alert-blue',
-    PROMEDIO_BAJO:'alert-red',
-    PRACTICAS:'alert-blue',
-    PRACTICAS_COMPLETADAS:'alert-green',
-    SERVICIO_SOCIAL:'alert-green',
-    SERVICIO_COMPLETADO:'alert-green',
-    SERVICIO_PENDIENTE:'alert-muted',
-  };
-
-  el.innerHTML=alertas.map(a=>{
-    const cls=tipoClass[a.tipo]||'alert-muted';
-    return`<div class="alert ${cls}">
+  const sec=document.getElementById('sec-alertas');
+  if(sec)sec.style.display=alertas.length>0?'':'none';
+  if(!alertas.length){el.innerHTML='';return}
+  const tc={ARTICULO_33_CONSECUTIVO:'alert-red',ARTICULO_33:'alert-red',DISCREPANCIA_CREDITOS:'alert-yellow',DISCREPANCIA_AREA:'alert-yellow',RECORDATORIO_REPROBADA:'alert-blue',PROMEDIO_BAJO:'alert-red',PRACTICAS:'alert-blue',PRACTICAS_COMPLETADAS:'alert-green',SERVICIO_SOCIAL:'alert-green',SERVICIO_COMPLETADO:'alert-green',SERVICIO_PENDIENTE:'alert-muted',PRACTICAS_PENDIENTE:'alert-muted'};
+  el.innerHTML=alertas.map(a=>`
+    <div class="alert ${tc[a.tipo]||'alert-muted'}">
       <span class="alert-icon">${a.icono||'⚠️'}</span>
       <div><strong>${labelTipo(a.tipo)}</strong>${a.descripcion}</div>
-    </div>`;
-  }).join('');
+    </div>`).join('');
 }
-
-function labelTipo(tipo){
-  const m={
-    ARTICULO_33_CONSECUTIVO:'🚨 Artículo 33 — Consecutivo: ',
-    ARTICULO_33:'⚠️ Artículo 33: ',
-    DISCREPANCIA_CREDITOS:'Discrepancia de créditos: ',
-    DISCREPANCIA_AREA:'Discrepancia por área: ',
-    RECORDATORIO_REPROBADA:'📌 Recordatorio: ',
-    PROMEDIO_BAJO:'Promedio bajo: ',
-    PRACTICAS:'Prácticas Profesionales: ',
-    SERVICIO_SOCIAL:'Servicio Social: ',
-  };
-  return m[tipo]||'';
+function labelTipo(t){
+  const m={ARTICULO_33_CONSECUTIVO:'🚨 Art. 33 Consecutivo: ',ARTICULO_33:'⚠️ Art. 33: ',DISCREPANCIA_CREDITOS:'Discrepancia créditos: ',DISCREPANCIA_AREA:'Discrepancia área: ',RECORDATORIO_REPROBADA:'📌 Recordatorio: ',PROMEDIO_BAJO:'Promedio bajo: ',PRACTICAS:'Prácticas Profesionales: ',SERVICIO_SOCIAL:'Servicio Social: '};
+  return m[t]||'';
 }
 
 /* ── Disponibles ── */
 let _disponibles=[];
-function renderDisponibles(mats){
-  _disponibles=mats;
-  filterDisponibles(state.filtroArea);
-}
-function filterDisponibles(area){
+function renderDisponibles(mats){_disponibles=mats;filterDisponibles('all')}
+function filterDisponibles(area,ev){
   state.filtroArea=area;
   document.querySelectorAll('#filter-chips .chip').forEach(c=>c.classList.remove('active'));
-  event&&event.target&&event.target.classList.add('active');
-
+  if(ev&&ev.target)ev.target.classList.add('active');
+  else{const chips=document.querySelectorAll('#filter-chips .chip');if(area==='all')chips[0].classList.add('active')}
   let list=_disponibles;
-  if(area==='priority') list=list.filter(m=>m.prioritaria);
-  else if(area!=='all') list=list.filter(m=>m.area_cod===area);
-
+  if(area==='priority')list=list.filter(m=>m.prioritaria);
+  else if(area!=='all')list=list.filter(m=>m.area_cod===area);
   const el=document.getElementById('disponibles-list');
-  if(!list.length){el.innerHTML='<div class="empty"><span class="empty-icon">✅</span>No hay materias disponibles con este filtro.</div>';return}
+  if(!list.length){el.innerHTML='<div class="empty"><span class="empty-icon">✅</span>Sin materias con este filtro</div>';return}
   el.innerHTML=list.map(m=>`
     <div class="materia-item ${m.prioritaria?'priority':''} ${m.en_horario?'in-horario':''}">
       <span class="materia-clave">${m.clave}</span>
@@ -990,75 +1032,70 @@ function filterDisponibles(area){
           <span class="badge badge-muted">${m.creditos} cr</span>
           ${m.prioritaria?'<span class="badge badge-orange">⚡ Prioritaria</span>':''}
           ${m.en_horario?'<span class="badge badge-blue">📅 En horario</span>':''}
-          ${m.estado&&m.estado.startsWith('Pre')?`<span class="badge badge-green" style="font-size:10px">${m.estado}</span>`:''}
         </div>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 /* ── Bloqueadas ── */
 function renderBloqueadas(mats){
   const el=document.getElementById('bloqueadas-list');
-  if(!mats.length){el.innerHTML='<div class="empty">Sin materias bloqueadas — ¡todos los prerrequisitos cumplidos!</div>';return}
+  if(!mats.length){el.innerHTML='<div class="empty">Sin materias bloqueadas — todos los prerrequisitos cumplidos ✅</div>';return}
   el.innerHTML=`<div class="table-wrap"><table>
-    <thead><tr><th>Clave</th><th>Materia</th><th>Área</th><th>Créditos</th><th>Falta aprobar</th></tr></thead>
+    <thead><tr><th>Clave</th><th>Materia</th><th>Área</th><th>Cr</th><th>Falta</th></tr></thead>
     <tbody>${mats.map(m=>`
     <tr>
       <td class="td-mono">${m.clave}</td>
       <td>${m.nombre}</td>
-      <td class="text-muted text-sm">${m.area}</td>
+      <td class="text-muted text-xs">${m.area}</td>
       <td class="td-num">${m.creditos}</td>
       <td><span class="badge badge-red">🔒 ${m.prerrequisito}</span></td>
-    </tr>`).join('')}
-    </tbody></table></div>`;
+    </tr>`).join('')}</tbody></table></div>`;
 }
 
-/* ════════════════════════════════════════════════════════
-   HORARIO
-════════════════════════════════════════════════════════ */
+/* ══════════════════════ HORARIO (dashboard) ══════════════════════ */
 function agregarHorarioItem(){
   const clave=document.getElementById('h-clave').value.trim().toUpperCase();
   const nombre=document.getElementById('h-nombre').value.trim().toUpperCase();
   const creditos=parseInt(document.getElementById('h-creditos').value)||0;
-  if(!clave||!nombre){toast('Clave y nombre son requeridos','red');return}
-  if(state.horario.find(h=>h.clave===clave)){toast('Esa clave ya está en el horario','red');return}
+  if(!clave||!nombre){toast('Clave y nombre requeridos','red');return}
+  if(state.horario.find(h=>h.clave===clave)){toast('Clave ya en horario','red');return}
   state.horario.push({clave,nombre,creditos});
-  renderHorario();
+  renderHorarioDash();
   closeModal('modal-horario');
   document.getElementById('h-clave').value='';
   document.getElementById('h-nombre').value='';
   document.getElementById('h-creditos').value='';
-  toast(`${clave} agregada al horario`,'green');
+  toast(`${clave} agregada`,'green');
 }
 
-function quitarHorarioItem(clave){
+function quitarHorarioDash(clave){
   state.horario=state.horario.filter(h=>h.clave!==clave);
-  renderHorario();
+  renderHorarioDash();
 }
 
-function renderHorario(){
+function renderHorarioDash(){
   const el=document.getElementById('horario-items');
   const total=state.horario.reduce((s,h)=>s+h.creditos,0);
   document.getElementById('horario-creditos-label').textContent=`${total} créditos en horario`;
   if(!state.horario.length){
-    el.innerHTML='<div class="empty"><span class="empty-icon">📭</span>Aún no has agregado materias al horario.</div>';
+    el.innerHTML='<div class="empty"><span class="empty-icon">📭</span>Sin materias en el horario</div>';
     return;
   }
   el.innerHTML=state.horario.map(h=>`
     <div class="horario-item">
       <span class="materia-clave">${h.clave}</span>
-      <span style="flex:1;font-weight:500">${h.nombre}</span>
+      <span style="flex:1;font-weight:500;font-size:13px">${h.nombre}</span>
       <span class="badge badge-blue">${h.creditos} cr</span>
-      <button class="btn btn-ghost btn-sm" onclick="quitarHorarioItem('${h.clave}')" title="Quitar">✕</button>
+      <button class="btn btn-ghost btn-sm" onclick="quitarHorarioDash('${h.clave}')" title="Quitar">✕</button>
     </div>`).join('');
 }
 
 async function guardarHorario(){
   if(!state.codigo){toast('No hay alumno cargado','red');return}
-  const cal=document.getElementById('horario-calendario').value.trim();
+  const cal=(document.getElementById('horario-calendario-dash').value||'').trim();
   if(!cal){toast('Ingresa el calendario (ej: 2025-B)','red');return}
-  if(!state.horario.length){toast('No hay materias en el horario','red');return}
+  if(!state.horario.length){toast('Agrega materias primero','red');return}
   showLoader('Guardando horario...');
   try{
     const r=await fetch(`${API}/api/alumnos/${state.codigo}/horario`,{
@@ -1066,108 +1103,73 @@ async function guardarHorario(){
       body:JSON.stringify({calendario:cal,materias:state.horario})
     });
     const d=await r.json();
-    if(d.ok){
-      toast(`Horario guardado (${d.guardadas} materias)`,'green');
-      await reanalizar();
-    } else toast(d.error||'Error al guardar','red');
+    if(d.ok){toast(`Horario guardado (${d.guardadas} materias)`,'green');await reanalizar()}
+    else toast(d.error||'Error','red');
   }catch(e){toast('Error de conexión','red')}
   finally{hideLoader()}
 }
 
-/* ════════════════════════════════════════════════════════
-   PERFIL
-════════════════════════════════════════════════════════ */
-async function guardarPerfil(){
-  if(!state.codigo){toast('No hay alumno cargado','red');return}
-  const ori=document.getElementById('select-orientacion').value;
-  const ss=document.getElementById('chk-servicio').checked;
-  const pr=document.getElementById('chk-practicas').checked;
-  showLoader('Guardando perfil...');
+async function cargarHorarioRemoto(){
   try{
-    const r=await fetch(`${API}/api/alumnos/${state.codigo}/perfil`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({orientacion:ori,servicio_social:ss,practicas:pr})
-    });
+    const r=await fetch(`${API}/api/alumnos/${state.codigo}/horario`);
     const d=await r.json();
-    if(d.ok){
-      toast('Perfil actualizado','green');
-      closeModal('modal-orientacion');
-      await reanalizar();
-    } else toast(d.error||'Error','red');
-  }catch(e){toast('Error de conexión','red')}
-  finally{hideLoader()}
+    if(Array.isArray(d)){
+      state.horario=d.map(h=>({clave:h.clave,nombre:h.nombre,creditos:h.creditos||0,calendario:h.calendario}));
+      renderHorarioDash();
+      renderHorarioStep();
+      if(d.length&&d[0].calendario){
+        const cal=d[0].calendario;
+        document.getElementById('horario-calendario').value=cal;
+        document.getElementById('horario-calendario-dash').value=cal;
+        document.getElementById('horario-cal-label').textContent=cal;
+      }
+    }
+  }catch(e){}
 }
 
-/* ════════════════════════════════════════════════════════
-   BUSCAR / EQUIVALENCIA (3 filtros)
-════════════════════════════════════════════════════════ */
-function renderSugerirResultado(d, elRes, elAreaSel, elAreaLista, elAreaSelect){
+/* ══════════════════════ BUSCAR EQUIVALENCIA ══════════════════════ */
+function renderSugerirResultado(d,elRes,elAreaSel,elAreaLista,elAreaSelect){
   elAreaSel.classList.add('hidden');
   if(!d){elRes.innerHTML='';return}
-
   if(d.encontrado){
     const m=d.materia;
-    const filtroLabel={clave:'🔑 Encontrada por clave exacta',nombre:`📝 Encontrada por nombre similar (${Math.round((d.similitud||0)*100)}% similitud)`};
-    elRes.innerHTML=`
-      <div class="alert alert-green">
-        <span class="alert-icon">✅</span>
-        <div><strong>${filtroLabel[d.filtro]||'Encontrada'}</strong>
-          <div class="materia-item mt-12" style="background:var(--green-dim);border-color:var(--green)">
-            <span class="materia-clave">${m.clave}</span>
-            <div style="flex:1">
-              <div class="materia-nombre">${m.materia||m.nombre}</div>
-              <div class="materia-area">${m.area}</div>
-              <div class="materia-badges mt-12">
-                <span class="badge badge-green">${m.creditos} cr</span>
-                ${m.orientacion?`<span class="badge badge-muted">${m.orientacion}</span>`:''}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>`;
+    const fl={clave:'🔑 Por clave exacta',nombre:`📝 Por nombre similar (${Math.round((d.similitud||0)*100)}%)`};
+    elRes.innerHTML=`<div class="alert alert-green"><span class="alert-icon">✅</span><div><strong>${fl[d.filtro]||'Encontrada'}</strong>
+      <div class="materia-item" style="margin-top:10px;background:var(--green-dim);border-color:rgba(0,217,126,.3)">
+        <span class="materia-clave">${m.clave}</span>
+        <div style="flex:1"><div class="materia-nombre">${m.materia||m.nombre}</div><div class="materia-area">${m.area}</div>
+        <div class="materia-badges"><span class="badge badge-green">${m.creditos} cr</span>${m.orientacion?`<span class="badge badge-muted">${m.orientacion}</span>`:''}</div>
+        </div></div></div></div>`;
     return;
   }
-
   if(d.filtro==='ninguno'){
-    // Mostrar selector de área
     elRes.innerHTML=`<div class="alert alert-muted"><span class="alert-icon">🤷</span><div>${d.mensaje}</div></div>`;
     elAreaSel.classList.remove('hidden');
     elAreaSelect.innerHTML='<option value="">— Seleccionar área —</option>';
-    (d.areas||[]).sort().forEach(a=>{
-      const o=document.createElement('option');o.value=a;o.textContent=a;elAreaSelect.appendChild(o);
-    });
+    (d.areas||[]).sort().forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;elAreaSelect.appendChild(o)});
     elAreaLista.innerHTML='';
     return;
   }
-
   if(d.filtro==='area'){
     elRes.innerHTML=`<div class="alert alert-muted"><span class="alert-icon">ℹ️</span><div>${d.mensaje}</div></div>`;
     elAreaLista.innerHTML=(d.lista_area||[]).map(m=>`
       <div class="materia-item">
         <span class="materia-clave">${m.clave}</span>
-        <div style="flex:1">
-          <div class="materia-nombre">${m.materia||m.nombre}</div>
-          <div class="materia-area">${m.area}</div>
-          <div class="materia-badges"><span class="badge badge-muted">${m.creditos} cr</span></div>
-        </div>
-      </div>`).join('')||'<div class="empty">Sin materias disponibles en esa área</div>';
+        <div style="flex:1"><div class="materia-nombre">${m.materia||m.nombre}</div>
+        <div class="materia-area">${m.area}</div>
+        <div class="materia-badges"><span class="badge badge-muted">${m.creditos} cr</span></div>
+        </div></div>`).join('')||'<div class="empty">Sin materias en esa área</div>';
   }
 }
 
-// En modal
 async function buscarMateria(){
   if(!state.codigo)return;
   const q=document.getElementById('sugerir-query').value.trim();
-  if(!q){toast('Ingresa una clave o nombre','red');return}
+  if(!q){toast('Ingresa clave o nombre','red');return}
   const r=await fetch(`${API}/api/alumnos/${state.codigo}/sugerir?q=${encodeURIComponent(q)}`);
   const d=await r.json();
-  renderSugerirResultado(d,
-    document.getElementById('sugerir-resultado'),
-    document.getElementById('sugerir-area-selector'),
-    document.getElementById('sugerir-area-lista'),
-    document.getElementById('sugerir-area'));
+  renderSugerirResultado(d,document.getElementById('sugerir-resultado'),document.getElementById('sugerir-area-selector'),document.getElementById('sugerir-area-lista'),document.getElementById('sugerir-area'));
 }
-
 async function buscarPorArea(){
   const q=document.getElementById('sugerir-query').value.trim();
   const area=document.getElementById('sugerir-area').value;
@@ -1175,30 +1177,20 @@ async function buscarPorArea(){
   const r=await fetch(`${API}/api/alumnos/${state.codigo}/sugerir?q=${encodeURIComponent(q)}&area=${encodeURIComponent(area)}`);
   const d=await r.json();
   document.getElementById('sugerir-area-lista').innerHTML=(d.lista_area||[]).map(m=>`
-    <div class="materia-item">
-      <span class="materia-clave">${m.clave}</span>
-      <div style="flex:1">
-        <div class="materia-nombre">${m.materia||m.nombre}</div>
-        <div class="materia-area">${m.area}</div>
-        <div class="materia-badges"><span class="badge badge-muted">${m.creditos} cr</span></div>
-      </div>
-    </div>`).join('')||'<div class="empty">Sin materias disponibles en esa área</div>';
+    <div class="materia-item"><span class="materia-clave">${m.clave}</span>
+    <div style="flex:1"><div class="materia-nombre">${m.materia||m.nombre}</div>
+    <div class="materia-area">${m.area}</div>
+    <div class="materia-badges"><span class="badge badge-muted">${m.creditos} cr</span></div>
+    </div></div>`).join('')||'<div class="empty">Sin materias en esa área</div>';
 }
-
-// En tab
 async function buscarMateriaTab(){
   if(!state.codigo)return;
   const q=document.getElementById('tab-sugerir-query').value.trim();
-  if(!q){toast('Ingresa una clave o nombre','red');return}
+  if(!q){toast('Ingresa clave o nombre','red');return}
   const r=await fetch(`${API}/api/alumnos/${state.codigo}/sugerir?q=${encodeURIComponent(q)}`);
   const d=await r.json();
-  renderSugerirResultado(d,
-    document.getElementById('tab-sugerir-resultado'),
-    document.getElementById('tab-sugerir-area-selector'),
-    document.getElementById('tab-sugerir-area-lista'),
-    document.getElementById('tab-sugerir-area'));
+  renderSugerirResultado(d,document.getElementById('tab-sugerir-resultado'),document.getElementById('tab-sugerir-area-selector'),document.getElementById('tab-sugerir-area-lista'),document.getElementById('tab-sugerir-area'));
 }
-
 async function buscarPorAreaTab(){
   const q=document.getElementById('tab-sugerir-query').value.trim();
   const area=document.getElementById('tab-sugerir-area').value;
@@ -1206,25 +1198,22 @@ async function buscarPorAreaTab(){
   const r=await fetch(`${API}/api/alumnos/${state.codigo}/sugerir?q=${encodeURIComponent(q)}&area=${encodeURIComponent(area)}`);
   const d=await r.json();
   document.getElementById('tab-sugerir-area-lista').innerHTML=(d.lista_area||[]).map(m=>`
-    <div class="materia-item">
-      <span class="materia-clave">${m.clave}</span>
-      <div style="flex:1">
-        <div class="materia-nombre">${m.materia||m.nombre}</div>
-        <div class="materia-area">${m.area}</div>
-        <div class="materia-badges"><span class="badge badge-muted">${m.creditos} cr</span></div>
-      </div>
-    </div>`).join('')||'<div class="empty">Sin materias disponibles en esa área</div>';
+    <div class="materia-item"><span class="materia-clave">${m.clave}</span>
+    <div style="flex:1"><div class="materia-nombre">${m.materia||m.nombre}</div>
+    <div class="materia-area">${m.area}</div>
+    <div class="materia-badges"><span class="badge badge-muted">${m.creditos} cr</span></div>
+    </div></div>`).join('')||'<div class="empty">Sin materias en esa área</div>';
 }
 
-/* ════════════════════════════════════════════════════════
-   INIT
-════════════════════════════════════════════════════════ */
-// Close modals on backdrop click
+/* ══════════════════════ INIT ══════════════════════ */
 document.querySelectorAll('.modal-backdrop').forEach(b=>{
   b.addEventListener('click',e=>{if(e.target===b)b.classList.add('hidden')});
 });
 
-// Check if already loaded student on page load
+// Enter en horario inline
+document.getElementById('h2-creditos').addEventListener('keydown',e=>{if(e.key==='Enter')agregarHorarioInline()});
+
+// Al cargar: ver si ya hay alumno en BD
 (async()=>{
   try{
     const r=await fetch(`${API}/api/alumnos`);
@@ -1232,6 +1221,7 @@ document.querySelectorAll('.modal-backdrop').forEach(b=>{
     if(d&&d.length){
       state.codigo=d[d.length-1].codigo;
       await cargarDashboard();
+      await cargarHorarioRemoto();
     }
   }catch(e){}
 })();
