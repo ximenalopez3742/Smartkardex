@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smartkardex — Sistema de Análisis Académico UDG</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:          #0d0f14;
+    --bg2:         #141720;
+    --bg3:         #1c2030;
+    --border:      #262c3e;
+    --accent:      #4f7cff;
+    --accent2:     #7b5ea7;
+    --green:       #3ecf8e;
+    --red:         #f06a6a;
+    --yellow:      #f5a623;
+    --text:        #e8eaf0;
+    --text2:       #8890a8;
+    --text3:       #555e78;
+    --font:        'DM Sans', sans-serif;
+    --mono:        'DM Mono', monospace;
+    --radius:      12px;
+    --radius-sm:   8px;
+    --shadow:      0 4px 24px rgba(0,0,0,.45);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ─────────────────────────────────────────────── */
+  #sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    transition: width .25s;
+  }
+
+  .logo-area {
+    padding: 22px 20px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-area h1 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    color: var(--text);
+  }
+  .logo-area h1 span {
+    color: var(--accent);
+  }
+  .logo-area p {
+    font-size: .72rem;
+    color: var(--text3);
+    margin-top: 3px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  #upload-area {
+    margin: 14px 12px;
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 16px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    background: transparent;
+  }
+  #upload-area:hover, #upload-area.dragging {
+    border-color: var(--accent);
+    background: rgba(79,124,255,.05);
+  }
+  #upload-area .upload-icon {
+    font-size: 1.5rem;
+    margin-bottom: 6px;
+  }
+  #upload-area p {
+    font-size: .78rem;
+    color: var(--text2);
+    line-height: 1.4;
+  }
+  #upload-area strong {
+    color: var(--accent);
+    font-weight: 500;
+  }
+  #file-input { display: none; }
+
+  #upload-status {
+    margin: 0 12px 10px;
+    font-size: .75rem;
+    color: var(--text2);
+    min-height: 20px;
+    padding: 0 4px;
+  }
+  #upload-status.ok   { color: var(--green); }
+  #upload-status.err  { color: var(--red); }
+  #upload-status.loading { color: var(--yellow); }
+
+  .sidebar-section {
+    padding: 6px 12px 4px;
+  }
+  .sidebar-section h3 {
+    font-size: .65rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text3);
+    padding: 4px 8px 8px;
+    font-weight: 500;
+  }
+
+  #student-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 12px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .student-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background .15s;
+    margin-bottom: 2px;
+  }
+  .student-item:hover { background: var(--bg3); }
+  .student-item.active {
+    background: rgba(79,124,255,.12);
+    border: 1px solid rgba(79,124,255,.2);
+  }
+  .student-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .75rem;
+    font-weight: 600;
+    flex-shrink: 0;
+    color: #fff;
+  }
+  .student-info { min-width: 0; flex: 1; }
+  .student-name {
+    font-size: .8rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text);
+  }
+  .student-code {
+    font-size: .7rem;
+    color: var(--text3);
+    font-family: var(--mono);
+  }
+  .student-delete {
+    opacity: 0;
+    background: none;
+    border: none;
+    color: var(--red);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: .8rem;
+    transition: opacity .15s;
+  }
+  .student-item:hover .student-delete { opacity: 1; }
+
+  .sidebar-bottom {
+    border-top: 1px solid var(--border);
+    padding: 12px;
+  }
+  .plan-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: .74rem;
+    color: var(--text2);
+    padding: 6px 10px;
+    background: var(--bg3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+  .plan-badge .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--red);
+    flex-shrink: 0;
+  }
+  .plan-badge .dot.loaded { background: var(--green); }
+
+  /* ── MAIN PANEL ──────────────────────────────────────────── */
+  #main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #topbar {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  #topbar .breadcrumb {
+    font-size: .8rem;
+    color: var(--text2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #topbar .breadcrumb span:last-child {
+    color: var(--text);
+    font-weight: 500;
+  }
+  #topbar .sep { color: var(--text3); }
+  .action-btn {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+  }
+  .btn {
+    padding: 7px 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: .78rem;
+    font-weight: 500;
+    transition: all .15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { opacity: .88; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text2);
+  }
+  .btn-ghost:hover { background: var(--bg3); color: var(--text); }
+
+  /* ── CONTENT ────────────────────────────────────────────── */
+  #content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 32px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  /* Welcome screen */
+  #welcome {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 12px;
+    opacity: 1;
+    transition: opacity .3s;
+  }
+  #welcome .big-icon {
+    font-size: 3.5rem;
+    margin-bottom: 8px;
+    filter: drop-shadow(0 0 20px rgba(79,124,255,.4));
+  }
+  #welcome h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -.02em;
+  }
+  #welcome p {
+    color: var(--text2);
+    font-size: .9rem;
+    max-width: 340px;
+    line-height: 1.6;
+  }
+  .steps {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .step-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    width: 160px;
+    text-align: left;
+  }
+  .step-card .num {
+    width: 22px; height: 22px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .72rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+  .step-card p {
+    font-size: .78rem;
+    color: var(--text2);
+    line-height: 1.5;
+    max-width: none;
+  }
+  .step-card strong { color: var(--text); font-weight: 500; }
+
+  /* Student dashboard */
+  #dashboard { display: none; }
+  #dashboard.visible { display: block; }
+
+  .dash-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+  .dash-avatar {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .dash-info h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: -.01em;
+  }
+  .dash-info .meta {
+    font-size: .78rem;
+    color: var(--text2);
+    margin-top: 3px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .dash-info .meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Stat cards */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    transition: border-color .2s;
+  }
+  .stat-card:hover { border-color: var(--accent); }
+  .stat-label {
+    font-size: .68rem;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .stat-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text);
+    font-family: var(--mono);
+    letter-spacing: -.02em;
+    line-height: 1;
+  }
+  .stat-value.green { color: var(--green); }
+  .stat-value.yellow { color: var(--yellow); }
+  .stat-value.red { color: var(--red); }
+  .stat-sub {
+    font-size: .72rem;
+    color: var(--text3);
+    margin-top: 4px;
+  }
+  .progress-bar {
+    height: 4px;
+    background: var(--bg3);
+    border-radius: 2px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width .8s cubic-bezier(.22,1,.36,1);
+  }
+
+  /* Sections */
+  .section {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .section-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+    transition: background .15s;
+  }
+  .section-header:hover { background: rgba(255,255,255,.02); }
+  .section-title {
+    font-size: .85rem;
+    font-weight: 600;
+    flex: 1;
+  }
+  .section-badge {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: .7rem;
+    color: var(--text2);
+    font-family: var(--mono);
+  }
+  .section-badge.green { background: rgba(62,207,142,.1); border-color: rgba(62,207,142,.3); color: var(--green); }
+  .section-badge.red   { background: rgba(240,106,106,.1); border-color: rgba(240,106,106,.3); color: var(--red); }
+  .section-badge.yellow { background: rgba(245,166,35,.1); border-color: rgba(245,166,35,.3); color: var(--yellow); }
+  .chevron {
+    color: var(--text3);
+    font-size: .8rem;
+    transition: transform .2s;
+  }
+  .section.collapsed .chevron { transform: rotate(-90deg); }
+  .section-body {
+    padding: 0;
+    transition: max-height .3s ease;
+  }
+  .section.collapsed .section-body { display: none; }
+
+  /* Subject list */
+  .subject-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    transition: background .1s;
+  }
+  .subject-row:last-child { border-bottom: none; }
+  .subject-row:hover { background: rgba(255,255,255,.02); }
+  .subj-code {
+    font-family: var(--mono);
+    font-size: .72rem;
+    color: var(--accent);
+    padding: 2px 6px;
+    background: rgba(79,124,255,.1);
+    border-radius: 4px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    min-width: 52px;
+    text-align: center;
+  }
+  .subj-code.blocked { color: var(--text3); background: var(--bg3); }
+  .subj-name {
+    font-size: .82rem;
+    color: var(--text);
+    font-weight: 400;
+    flex: 1;
+    line-height: 1.4;
+  }
+  .subj-meta {
+    font-size: .7rem;
+    color: var(--text3);
+    margin-top: 2px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .subj-meta span { display: flex; align-items: center; gap: 3px; }
+  .subj-area {
+    font-size: .65rem;
+    padding: 1px 7px;
+    border-radius: 20px;
+    background: var(--bg3);
+    color: var(--text3);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+  .lock-reason {
+    font-size: .7rem;
+    color: var(--yellow);
+    margin-top: 3px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Alerts */
+  .alert-row {
+    display: flex;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    align-items: flex-start;
+  }
+  .alert-row:last-child { border-bottom: none; }
+  .alert-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+  .alert-body { flex: 1; }
+  .alert-type {
+    font-size: .65rem;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text3);
+    margin-bottom: 3px;
+  }
+  .alert-desc {
+    font-size: .8rem;
+    color: var(--text2);
+    line-height: 1.5;
+  }
+
+  /* Area table */
+  .area-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .area-table th {
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text3);
+    text-align: left;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+  }
+  .area-table th:not(:first-child) { text-align: right; }
+  .area-table td {
+    padding: 11px 18px;
+    font-size: .8rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .area-table tr:last-child td { border-bottom: none; }
+  .area-table td:not(:first-child) {
+    text-align: right;
+    font-family: var(--mono);
+    font-size: .78rem;
+    color: var(--text2);
+  }
+  .mini-bar {
+    display: inline-flex;
+    width: 60px;
+    height: 4px;
+    background: var(--bg3);
+    border-radius: 2px;
+    overflow: hidden;
+    vertical-align: middle;
+    margin-left: 8px;
+  }
+  .mini-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 18px;
+    font-size: .82rem;
+    color: var(--text);
+    box-shadow: var(--shadow);
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all .3s cubic-bezier(.22,1,.36,1);
+    z-index: 9999;
+    max-width: 320px;
+  }
+  #toast.show {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  #toast.toast-ok   { border-color: var(--green); }
+  #toast.toast-err  { border-color: var(--red); }
+
+  /* Loading overlay */
+  #loading-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(13,15,20,.7);
+    backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 100;
+    color: var(--text2);
+    font-size: .85rem;
+  }
+  #loading-overlay.show { display: flex; }
+  .big-spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    #sidebar { width: 220px; min-width: 220px; }
+    #content { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay">
+  <div class="big-spinner"></div>
+  <span id="loading-msg">Cargando...</span>
+</div>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="logo-area">
+    <h1>Smart<span>Kardex</span></h1>
+    <p>Sistema UDG / IELC</p>
+  </div>
+
+  <!-- Upload PDF -->
+  <div id="upload-area" onclick="document.getElementById('file-input').click()">
+    <div class="upload-icon">📄</div>
+    <p>Sube un <strong>kárdex PDF</strong><br>de la UDG para cargarlo</p>
+  </div>
+  <input type="file" id="file-input" accept=".pdf">
+  <div id="upload-status"></div>
+
+  <!-- Student list -->
+  <div class="sidebar-section">
+    <h3>Alumnos cargados</h3>
+  </div>
+  <div id="student-list">
+    <div id="no-students" style="font-size:.78rem;color:var(--text3);padding:8px 18px;line-height:1.6;">
+      Aún no hay alumnos.<br>Sube un PDF para empezar.
+    </div>
+  </div>
+
+  <!-- Bottom -->
+  <div class="sidebar-bottom">
+    <div class="plan-badge">
+      <div class="dot" id="plan-dot"></div>
+      <span id="plan-label">Plan de estudios</span>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main id="main" style="position:relative;">
+  <!-- Topbar -->
+  <div id="topbar">
+    <div class="breadcrumb">
+      <span>Smartkardex</span>
+      <span class="sep">›</span>
+      <span id="topbar-title">Inicio</span>
+    </div>
+    <div class="action-btn" id="topbar-actions" style="display:none;">
+      <button class="btn btn-primary" onclick="analizarActual()">
+        <span class="spinner" id="analyze-spinner" style="display:none;"></span>
+        🔍 Analizar
+      </button>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div id="content">
+    <!-- Welcome -->
+    <div id="welcome">
+      <div class="big-icon">🎓</div>
+      <h2>Sistema de Análisis Académico</h2>
+      <p>Sube un kárdex PDF de la UDG y obtén un análisis completo: materias disponibles, bloqueadas y alertas académicas.</p>
+      <div class="steps">
+        <div class="step-card">
+          <div class="num">1</div>
+          <p>Sube un <strong>PDF de kárdex</strong> UDG desde el panel izquierdo</p>
+        </div>
+        <div class="step-card">
+          <div class="num">2</div>
+          <p>Selecciona un <strong>alumno</strong> de la lista para ver su resumen</p>
+        </div>
+        <div class="step-card">
+          <div class="num">3</div>
+          <p>Haz clic en <strong>Analizar</strong> para ver materias disponibles y alertas</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard (hidden until student selected) -->
+    <div id="dashboard"></div>
+  </div>
+</main>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+const API = "/api";
+let currentAlumno = null;
+let studentsData   = {};
+
+// ── Utilities ────────────────────────────────────────────────
+
+function toast(msg, type='ok', duration=3500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `show toast-${type}`;
+  clearTimeout(t._to);
+  t._to = setTimeout(() => t.className = '', duration);
+}
+
+function loading(show, msg='Procesando...') {
+  const el = document.getElementById('loading-overlay');
+  document.getElementById('loading-msg').textContent = msg;
+  el.classList.toggle('show', show);
+}
+
+function initials(name='') {
+  return name.split(' ').slice(0,2).map(w => w[0] || '').join('').toUpperCase() || '?';
+}
+
+// ── Init ─────────────────────────────────────────────────────
+
+async function init() {
+  await checkPlan();
+  await loadStudents();
+}
+
+async function checkPlan() {
+  try {
+    const r = await fetch(`${API}/plan/status`);
+    if (!r.ok) throw new Error('API error');
+    const d = await r.json();
+    const dot   = document.getElementById('plan-dot');
+    const label = document.getElementById('plan-label');
+    if (d.cargado) {
+      dot.classList.add('loaded');
+      label.textContent = `Plan cargado (${d.total_materias} materias)`;
+    } else {
+      label.textContent = 'Importando plan…';
+      await fetch(`${API}/plan/importar`, { method: 'POST' });
+      await checkPlan();
+    }
+  } catch(e) {
+    const dot   = document.getElementById('plan-dot');
+    const label = document.getElementById('plan-label');
+    dot.classList.remove('loaded');
+    label.textContent = 'API no disponible';
+    // Reintentar en 5 segundos
+    setTimeout(checkPlan, 5000);
+  }
+}
+
+async function loadStudents() {
+  try {
+    const r = await fetch(`${API}/alumnos`);
+    const students = await r.json();
+    studentsData = {};
+    students.forEach(s => studentsData[s.codigo] = s);
+    renderStudentList(students);
+  } catch(e) {}
+}
+
+function renderStudentList(students) {
+  const list = document.getElementById('student-list');
+  const none = document.getElementById('no-students');
+
+  // Clear old items (keep no-students)
+  [...list.querySelectorAll('.student-item')].forEach(e => e.remove());
+
+  if (!students.length) {
+    none.style.display = 'block';
+    return;
+  }
+  none.style.display = 'none';
+
+  students.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'student-item' + (currentAlumno === s.codigo ? ' active' : '');
+    div.dataset.codigo = s.codigo;
+    div.innerHTML = `
+      <div class="student-avatar">${initials(s.nombre)}</div>
+      <div class="student-info">
+        <div class="student-name">${s.nombre}</div>
+        <div class="student-code">${s.codigo}</div>
+      </div>
+      <button class="student-delete" title="Eliminar" onclick="deleteStudent(event,'${s.codigo}')">✕</button>
+    `;
+    div.addEventListener('click', (e) => {
+      if (e.target.classList.contains('student-delete')) return;
+      selectStudent(s.codigo);
+    });
+    list.appendChild(div);
+  });
+}
+
+// ── Upload PDF ───────────────────────────────────────────────
+
+const uploadArea = document.getElementById('upload-area');
+const fileInput  = document.getElementById('file-input');
+
+uploadArea.addEventListener('dragover',  e => { e.preventDefault(); uploadArea.classList.add('dragging'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragging'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.classList.remove('dragging');
+  const file = e.dataTransfer.files[0];
+  if (file) uploadPDF(file);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) uploadPDF(fileInput.files[0]);
+  fileInput.value = '';
+});
+
+async function uploadPDF(file) {
+  if (!file.name.toLowerCase().endsWith('.pdf')) {
+    setUploadStatus('Solo se aceptan archivos PDF', 'err');
+    return;
+  }
+  setUploadStatus(`<span class="spinner"></span> Subiendo ${file.name}…`, 'loading');
+  loading(true, `Procesando ${file.name}…`);
+
+  const fd = new FormData();
+  fd.append('pdf', file);
+
+  try {
+    const r = await fetch(`${API}/kardex/cargar`, { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.ok && d.alumno) {
+      setUploadStatus(`✓ ${d.alumno.nombre}`, 'ok');
+      toast(`✅ Kárdex cargado: ${d.alumno.nombre}`, 'ok');
+      // Primero recargar la lista para que studentsData esté actualizado
+      await loadStudents();
+      // Luego seleccionar con el código exacto que devuelve la BD
+      await selectStudent(d.alumno.codigo);
+    } else {
+      setUploadStatus(d.error || 'Error al procesar PDF', 'err');
+      toast(`❌ ${d.error || 'Error al procesar PDF'}`, 'err');
+    }
+  } catch(e) {
+    setUploadStatus('No se pudo conectar con el servidor', 'err');
+    toast('❌ No se pudo conectar con el servidor', 'err');
+  } finally {
+    loading(false);
+  }
+}
+
+function setUploadStatus(html, type='') {
+  const s = document.getElementById('upload-status');
+  s.innerHTML = html;
+  s.className = type;
+}
+
+// ── Student selection ────────────────────────────────────────
+
+async function selectStudent(codigo) {
+  currentAlumno = codigo;
+
+  // Actualizar sidebar highlight (puede que studentsData aún no tenga este código)
+  document.querySelectorAll('.student-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.codigo === codigo);
+  });
+
+  // Usar nombre si ya está en studentsData, si no usar el código temporalmente
+  const student = studentsData[codigo];
+  document.getElementById('topbar-title').textContent = student?.nombre || codigo;
+  document.getElementById('topbar-actions').style.display = 'flex';
+  document.getElementById('welcome').style.display = 'none';
+
+  // Show loading state
+  const dash = document.getElementById('dashboard');
+  dash.className = 'visible';
+  dash.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text3);">
+    <div class="big-spinner" style="margin:0 auto 12px;"></div>
+    <p>Cargando datos del alumno…</p>
+  </div>`;
+
+  try {
+    const r = await fetch(`${API}/alumnos/${codigo}`);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      dash.innerHTML = `<p style="color:var(--red);padding:20px">❌ ${err.error || 'Error al cargar alumno'}</p>`;
+      toast(`❌ ${err.error || 'Alumno no encontrado'}`, 'err');
+      return;
+    }
+    const d = await r.json();
+    if (d.error) { dash.innerHTML = `<p style="color:var(--red);padding:20px">${d.error}</p>`; return; }
+    // Actualizar el topbar con el nombre real de la BD
+    document.getElementById('topbar-title').textContent = d.alumno?.nombre || codigo;
+    renderDashboard(d);
+  } catch(e) {
+    dash.innerHTML = `<p style="color:var(--red);padding:20px">❌ No se pudo conectar con el servidor</p>`;
+  }
+}
+
+// ── Dashboard render ─────────────────────────────────────────
+
+function renderDashboard(data) {
+  const { alumno, materias, creditos_area } = data;
+  const cred_pct = alumno.creditos_requeridos
+    ? Math.round(alumno.creditos_adquiridos / alumno.creditos_requeridos * 100)
+    : 0;
+
+  const aprobadas = materias.filter(m => m.estatus === 'APROBADA').length;
+  const reprobadas = materias.filter(m => {
+    const group = materias.filter(x => x.clave === m.clave);
+    return m.estatus === 'REPROBADA' && !group.some(x => x.estatus === 'APROBADA');
+  });
+  const repActivas = [...new Set(reprobadas.map(m => m.clave))].length;
+
+  const dash = document.getElementById('dashboard');
+  dash.className = 'visible';
+  dash.innerHTML = `
+    <div class="dash-header">
+      <div class="dash-avatar">${initials(alumno.nombre)}</div>
+      <div class="dash-info">
+        <h2>${alumno.nombre}</h2>
+        <div class="meta">
+          <span>🎓 ${alumno.carrera || 'N/D'}</span>
+          <span>🪪 ${alumno.codigo}</span>
+          <span>📅 Último ciclo: ${alumno.ultimo_ciclo || '—'}</span>
+          <span>${alumno.situacion || ''}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Créditos</div>
+        <div class="stat-value">${alumno.creditos_adquiridos}</div>
+        <div class="stat-sub">de ${alumno.creditos_requeridos} requeridos</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${cred_pct}%"></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avance</div>
+        <div class="stat-value ${cred_pct >= 80 ? 'green' : cred_pct >= 50 ? 'yellow' : ''}">${cred_pct}%</div>
+        <div class="stat-sub">del plan de estudios</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Promedio</div>
+        <div class="stat-value ${alumno.promedio >= 80 ? 'green' : alumno.promedio >= 70 ? 'yellow' : 'red'}">${(alumno.promedio||0).toFixed(1)}</div>
+        <div class="stat-sub">calificación promedio</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Aprobadas</div>
+        <div class="stat-value green">${aprobadas}</div>
+        <div class="stat-sub">materias finales</div>
+      </div>
+      ${repActivas > 0 ? `
+      <div class="stat-card">
+        <div class="stat-label">Reprobadas activas</div>
+        <div class="stat-value red">${repActivas}</div>
+        <div class="stat-sub">sin aprobar aún</div>
+      </div>` : ''}
+    </div>
+
+    <!-- Progreso por área -->
+    ${renderAreaTable(creditos_area)}
+
+    <div style="padding:16px 0 8px;color:var(--text2);font-size:.8rem;">
+      💡 Haz clic en <strong style="color:var(--text)">Analizar</strong> (arriba a la derecha) para ver las materias disponibles para el próximo ciclo y alertas académicas.
+    </div>
+  `;
+}
+
+function renderAreaTable(areas) {
+  if (!areas || !areas.length) return '';
+  return `
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span style="font-size:1rem">📊</span>
+        <span class="section-title">Avance por área de formación</span>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="section-body">
+        <table class="area-table">
+          <thead>
+            <tr>
+              <th>Área</th>
+              <th>Cr. Adquiridos</th>
+              <th>Cr. Requeridos</th>
+              <th>Faltantes</th>
+              <th>Avance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${areas.map(a => {
+              const adq = a.adquiridos ?? 0;
+              const req = a.requeridos ?? 0;
+              const pct = req > 0 ? Math.min(100, Math.round(adq / req * 100)) : 0;
+              return `<tr>
+                <td style="color:var(--text)">${a.area || '—'}</td>
+                <td style="color:var(--green)">${adq}</td>
+                <td>${req}</td>
+                <td style="color:${a.faltantes > 0 ? 'var(--yellow)' : 'var(--green)'}">${a.faltantes ?? 0}</td>
+                <td>
+                  ${pct}%
+                  <span class="mini-bar"><span class="mini-fill" style="width:${pct}%"></span></span>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ── Analyze ──────────────────────────────────────────────────
+
+async function analizarActual() {
+  if (!currentAlumno) return;
+  const btn = document.querySelector('#topbar-actions .btn-primary');
+  const spinner = document.getElementById('analyze-spinner');
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+
+  try {
+    const r = await fetch(`${API}/alumnos/${currentAlumno}/analizar`);
+    const d = await r.json();
+    if (!r.ok || d.error) {
+      toast(`❌ ${d.error || 'Error al analizar'}`, 'err');
+      return;
+    }
+    renderAnalysis(d);
+  } catch(e) {
+    toast('❌ No se pudo conectar con el servidor', 'err');
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+function renderAnalysis(data) {
+  const { alumno, disponibles, bloqueadas, alertas, por_area } = data;
+  const cred_pct = alumno.creditos_requeridos
+    ? Math.round(alumno.creditos_adquiridos / alumno.creditos_requeridos * 100)
+    : 0;
+
+  const dash = document.getElementById('dashboard');
+
+  // Keep existing dashboard but append analysis sections
+  const existing = dash.querySelector('.analysis-results');
+  if (existing) existing.remove();
+
+  const analysisDiv = document.createElement('div');
+  analysisDiv.className = 'analysis-results';
+
+  // Stats
+  analysisDiv.innerHTML = `
+    <div style="padding:4px 0 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <h3 style="font-size:.95rem;font-weight:600;color:var(--text)">📋 Análisis del próximo ciclo</h3>
+      <span style="font-size:.72rem;color:var(--text3)">— ${disponibles.length} disponibles · ${bloqueadas.length} bloqueadas · ${alertas.length} alertas</span>
+    </div>
+
+    ${renderAlertas(alertas)}
+    ${renderDisponibles(disponibles)}
+    ${renderBloqueadas(bloqueadas)}
+    ${renderAreaTableAnalysis(por_area)}
+  `;
+
+  dash.appendChild(analysisDiv);
+  analysisDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderAlertas(alertas) {
+  if (!alertas || !alertas.length) return '';
+  const hasUrgent = alertas.some(a => a.tipo === 'ARTICULO_33');
+  return `
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span style="font-size:1rem">⚠️</span>
+        <span class="section-title">Alertas institucionales</span>
+        <span class="section-badge ${hasUrgent ? 'red' : 'yellow'}">${alertas.length}</span>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="section-body">
+        ${alertas.map(a => `
+          <div class="alert-row">
+            <div class="alert-icon">${a.icono}</div>
+            <div class="alert-body">
+              <div class="alert-type">${a.tipo.replace(/_/g,' ')}</div>
+              <div class="alert-desc">${a.descripcion}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderDisponibles(disponibles) {
+  if (!disponibles || !disponibles.length) {
+    return `<div class="section">
+      <div class="section-header">
+        <span>✅</span>
+        <span class="section-title">Materias disponibles</span>
+        <span class="section-badge">0</span>
+      </div>
+    </div>`;
+  }
+
+  // Group by area
+  const byArea = {};
+  disponibles.forEach(d => {
+    if (!byArea[d.area]) byArea[d.area] = [];
+    byArea[d.area].push(d);
+  });
+
+  return `
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span style="font-size:1rem">✅</span>
+        <span class="section-title">Materias disponibles para el próximo ciclo</span>
+        <span class="section-badge green">${disponibles.length}</span>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="section-body">
+        ${Object.entries(byArea).map(([area, mats]) => `
+          <div style="padding:8px 18px 4px;font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);border-bottom:1px solid var(--border);background:rgba(255,255,255,.01);">${area}</div>
+          ${mats.map(d => `
+            <div class="subject-row">
+              <div class="subj-code">${d.clave}</div>
+              <div style="flex:1;min-width:0;">
+                <div class="subj-name">${d.nombre}</div>
+                <div class="subj-meta">
+                  <span>📚 ${d.creditos} créditos</span>
+                  ${d.orientacion ? `<span>🎯 ${d.orientacion}</span>` : ''}
+                  ${d.estado !== 'Sin prerrequisito' ? `<span style="color:var(--green)">✓ ${d.estado}</span>` : '<span>Sin prerrequisito</span>'}
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderBloqueadas(bloqueadas) {
+  if (!bloqueadas || !bloqueadas.length) return '';
+  return `
+    <div class="section collapsed">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span style="font-size:1rem">🔒</span>
+        <span class="section-title">Materias bloqueadas</span>
+        <span class="section-badge red">${bloqueadas.length}</span>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="section-body">
+        ${bloqueadas.map(b => `
+          <div class="subject-row">
+            <div class="subj-code blocked">${b.clave}</div>
+            <div style="flex:1;min-width:0;">
+              <div class="subj-name" style="color:var(--text2)">${b.nombre}</div>
+              <div class="lock-reason">🔒 Requiere: <strong>${b.prerrequisito}</strong></div>
+              ${b.orientacion ? `<div class="subj-meta"><span>🎯 ${b.orientacion}</span></div>` : ''}
+            </div>
+            <div class="subj-area">${b.area_cod}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderAreaTableAnalysis(por_area) {
+  if (!por_area || !por_area.length) return '';
+  return `
+    <div class="section collapsed">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span style="font-size:1rem">📊</span>
+        <span class="section-title">Detalle de avance por área</span>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="section-body">
+        <table class="area-table">
+          <thead>
+            <tr>
+              <th>Área</th>
+              <th>Plan</th>
+              <th>Aprobadas</th>
+              <th>Cr. Plan</th>
+              <th>Cr. Adq.</th>
+              <th>Avance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${por_area.map(a => {
+              const pct = a.total_plan > 0 ? Math.round(a.aprobadas / a.total_plan * 100) : 0;
+              return `<tr>
+                <td style="color:var(--text)">${a.area}</td>
+                <td>${a.total_plan}</td>
+                <td style="color:var(--green)">${a.aprobadas}</td>
+                <td>${a.creditos_plan}</td>
+                <td>${a.creditos_aprobados}</td>
+                <td>${pct}%<span class="mini-bar"><span class="mini-fill" style="width:${pct}%"></span></span></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ── Delete ───────────────────────────────────────────────────
+
+async function deleteStudent(e, codigo) {
+  e.stopPropagation();
+  if (!confirm(`¿Eliminar al alumno ${codigo}?`)) return;
+  try {
+    await fetch(`${API}/alumnos/${codigo}`, { method: 'DELETE' });
+    if (currentAlumno === codigo) {
+      currentAlumno = null;
+      document.getElementById('dashboard').className = '';
+      document.getElementById('welcome').style.display = 'flex';
+      document.getElementById('topbar-title').textContent = 'Inicio';
+      document.getElementById('topbar-actions').style.display = 'none';
+    }
+    await loadStudents();
+    toast('✅ Alumno eliminado', 'ok');
+  } catch(e) {
+    toast('❌ Error al eliminar', 'err');
+  }
+}
+
+// ── Section toggle ────────────────────────────────────────────
+
+function toggleSection(header) {
+  header.closest('.section').classList.toggle('collapsed');
+}
+
+// ── Start ─────────────────────────────────────────────────────
+
+init();
+</script>
+</body>
+</html>
