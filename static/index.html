@@ -1,1754 +1,1261 @@
+cat > /home/claude/smartkardex/index.html << 'HTMLEOF'
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smartkardex — Sistema de Análisis Académico UDG</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Smartkardex — UDG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,300&display=swap" rel="stylesheet" />
 <style>
-  :root {
-    --bg:          #0d0f14;
-    --bg2:         #141720;
-    --bg3:         #1c2030;
-    --border:      #262c3e;
-    --accent:      #4f7cff;
-    --accent2:     #7b5ea7;
-    --green:       #3ecf8e;
-    --red:         #f06a6a;
-    --yellow:      #f5a623;
-    --text:        #e8eaf0;
-    --text2:       #8890a8;
-    --text3:       #555e78;
-    --font:        'DM Sans', sans-serif;
-    --mono:        'DM Mono', monospace;
-    --radius:      12px;
-    --radius-sm:   8px;
-    --shadow:      0 4px 24px rgba(0,0,0,.45);
-  }
+/* ── Reset & Variables ──────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:       #0d1117;
+  --surface:  #161b22;
+  --surface2: #1c2330;
+  --border:   #30363d;
+  --border2:  #21262d;
+  --text:     #e6edf3;
+  --muted:    #7d8590;
+  --green:    #3fb950;
+  --green-dim:#1a4731;
+  --blue:     #388bfd;
+  --blue-dim: #0d2044;
+  --yellow:   #d29922;
+  --yellow-dim:#2d2208;
+  --red:      #f85149;
+  --red-dim:  #3d1a1a;
+  --orange:   #e3b341;
+  --purple:   #8b5cf6;
+  --teal:     #39d353;
+  --accent:   #3fb950;
+  --mono:     'Space Mono', monospace;
+  --sans:     'DM Sans', sans-serif;
+  --radius:   8px;
+  --transition: 0.18s ease;
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--sans);
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  font-size:14px;
+  line-height:1.6;
+}
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── Scrollbar ─────────────────────────────────────────── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font);
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-  }
+/* ── Layout ────────────────────────────────────────────── */
+.app-shell{display:flex;flex-direction:column;min-height:100vh}
+header{
+  position:sticky;top:0;z-index:100;
+  background:rgba(13,17,23,.92);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(12px);
+  padding:0 24px;
+  display:flex;align-items:center;gap:16px;height:56px;
+}
+.logo{
+  font-family:var(--mono);font-size:18px;font-weight:700;
+  color:var(--green);letter-spacing:-0.5px;
+  display:flex;align-items:center;gap:8px;
+  text-decoration:none;
+}
+.logo-badge{
+  background:var(--green-dim);border:1px solid var(--green);
+  color:var(--green);font-size:10px;padding:1px 6px;border-radius:4px;
+  letter-spacing:1px;
+}
+.header-sub{color:var(--muted);font-size:12px;margin-left:4px}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:8px}
 
-  /* ── SIDEBAR ─────────────────────────────────────────────── */
-  #sidebar {
-    width: 280px;
-    min-width: 280px;
-    background: var(--bg2);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    padding: 0;
-    transition: width .25s;
-  }
+main{flex:1;padding:24px;max-width:1200px;margin:0 auto;width:100%}
 
-  .logo-area {
-    padding: 22px 20px 16px;
-    border-bottom: 1px solid var(--border);
-  }
-  .logo-area h1 {
-    font-size: 1.15rem;
-    font-weight: 600;
-    letter-spacing: -.02em;
-    color: var(--text);
-  }
-  .logo-area h1 span {
-    color: var(--accent);
-  }
-  .logo-area p {
-    font-size: .72rem;
-    color: var(--text3);
-    margin-top: 3px;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-  }
+/* ── Cards & Panels ────────────────────────────────────── */
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);overflow:hidden;
+}
+.card-header{
+  padding:14px 18px;border-bottom:1px solid var(--border2);
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--mono);font-size:12px;font-weight:700;
+  letter-spacing:.5px;color:var(--muted);text-transform:uppercase;
+}
+.card-body{padding:18px}
 
-  #upload-area {
-    margin: 14px 12px;
-    border: 1.5px dashed var(--border);
-    border-radius: var(--radius);
-    padding: 16px 12px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color .2s, background .2s;
-    background: transparent;
-  }
-  #upload-area:hover, #upload-area.dragging {
-    border-color: var(--accent);
-    background: rgba(79,124,255,.05);
-  }
-  #upload-area .upload-icon {
-    font-size: 1.5rem;
-    margin-bottom: 6px;
-  }
-  #upload-area p {
-    font-size: .78rem;
-    color: var(--text2);
-    line-height: 1.4;
-  }
-  #upload-area strong {
-    color: var(--accent);
-    font-weight: 500;
-  }
-  #file-input { display: none; }
+/* ── Upload Zone ───────────────────────────────────────── */
+#upload-zone{
+  border:2px dashed var(--border);border-radius:var(--radius);
+  padding:48px 24px;text-align:center;cursor:pointer;
+  transition:var(--transition);position:relative;
+}
+#upload-zone:hover,#upload-zone.drag-over{
+  border-color:var(--green);background:rgba(63,185,80,.04);
+}
+#upload-zone input[type=file]{
+  position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;
+}
+.upload-icon{font-size:36px;margin-bottom:12px;display:block}
+.upload-title{font-size:16px;font-weight:500;margin-bottom:6px}
+.upload-sub{color:var(--muted);font-size:13px}
 
-  #upload-status {
-    margin: 0 12px 10px;
-    font-size: .75rem;
-    color: var(--text2);
-    min-height: 20px;
-    padding: 0 4px;
-  }
-  #upload-status.ok   { color: var(--green); }
-  #upload-status.err  { color: var(--red); }
-  #upload-status.loading { color: var(--yellow); }
+/* ── Buttons ───────────────────────────────────────────── */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 16px;border-radius:6px;border:1px solid transparent;
+  font-family:var(--sans);font-size:13px;font-weight:500;
+  cursor:pointer;transition:var(--transition);white-space:nowrap;
+  text-decoration:none;
+}
+.btn-primary{background:var(--green);color:#000;border-color:var(--green)}
+.btn-primary:hover{background:#3aad49;border-color:#3aad49}
+.btn-secondary{background:transparent;color:var(--text);border-color:var(--border)}
+.btn-secondary:hover{background:var(--surface2);border-color:var(--muted)}
+.btn-danger{background:transparent;color:var(--red);border-color:var(--red)}
+.btn-danger:hover{background:var(--red-dim)}
+.btn-ghost{background:transparent;color:var(--muted);border-color:transparent;padding:6px 10px}
+.btn-ghost:hover{color:var(--text);background:var(--surface2)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
 
-  .sidebar-section {
-    padding: 6px 12px 4px;
-  }
-  .sidebar-section h3 {
-    font-size: .65rem;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--text3);
-    padding: 4px 8px 8px;
-    font-weight: 500;
-  }
+/* ── Form Controls ─────────────────────────────────────── */
+input,select,textarea{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);border-radius:6px;padding:7px 11px;
+  font-family:var(--sans);font-size:13px;width:100%;
+  transition:var(--transition);
+}
+input:focus,select:focus,textarea:focus{
+  outline:none;border-color:var(--green);
+  box-shadow:0 0 0 3px rgba(63,185,80,.15);
+}
+label{font-size:12px;color:var(--muted);display:block;margin-bottom:5px;font-weight:500}
+.form-group{margin-bottom:14px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.checkbox-row{display:flex;align-items:center;gap:8px}
+.checkbox-row input[type=checkbox]{width:auto}
 
-  #student-list {
-    max-height: 180px;
-    overflow-y: auto;
-    padding: 0 12px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
-  }
+/* ── Tabs ──────────────────────────────────────────────── */
+.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:20px;gap:2px}
+.tab{
+  padding:9px 18px;font-size:13px;cursor:pointer;border-radius:6px 6px 0 0;
+  color:var(--muted);border:1px solid transparent;border-bottom:none;
+  margin-bottom:-1px;transition:var(--transition);
+  display:flex;align-items:center;gap:6px;
+}
+.tab:hover{color:var(--text)}
+.tab.active{
+  color:var(--text);background:var(--surface);
+  border-color:var(--border);border-bottom-color:var(--surface);
+}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
 
-  .student-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 9px 10px;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: background .15s;
-    margin-bottom: 2px;
-  }
-  .student-item:hover { background: var(--bg3); }
-  .student-item.active {
-    background: rgba(79,124,255,.12);
-    border: 1px solid rgba(79,124,255,.2);
-  }
-  .student-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: .75rem;
-    font-weight: 600;
-    flex-shrink: 0;
-    color: #fff;
-  }
-  .student-info { min-width: 0; flex: 1; }
-  .student-name {
-    font-size: .8rem;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--text);
-  }
-  .student-code {
-    font-size: .7rem;
-    color: var(--text3);
-    font-family: var(--mono);
-  }
-  .student-delete {
-    opacity: 0;
-    background: none;
-    border: none;
-    color: var(--red);
-    cursor: pointer;
-    padding: 2px 4px;
-    border-radius: 4px;
-    font-size: .8rem;
-    transition: opacity .15s;
-  }
-  .student-item:hover .student-delete { opacity: 1; }
+/* ── Badge / Tag ───────────────────────────────────────── */
+.badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;
+}
+.badge-green{background:var(--green-dim);color:var(--green);border:1px solid var(--green)}
+.badge-red{background:var(--red-dim);color:var(--red);border:1px solid var(--red)}
+.badge-yellow{background:var(--yellow-dim);color:var(--yellow);border:1px solid var(--yellow)}
+.badge-blue{background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue)}
+.badge-muted{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.badge-orange{background:#2d1f08;color:var(--orange);border:1px solid var(--orange)}
 
-  .sidebar-bottom {
-    border-top: 1px solid var(--border);
-    padding: 12px;
-  }
-  .plan-badge {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: .74rem;
-    color: var(--text2);
-    padding: 6px 10px;
-    background: var(--bg3);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-  }
-  .plan-badge .dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--red);
-    flex-shrink: 0;
-  }
-  .plan-badge .dot.loaded { background: var(--green); }
+/* ── Progress Bar ──────────────────────────────────────── */
+.progress-wrap{background:var(--surface2);border-radius:4px;height:6px;overflow:hidden}
+.progress-bar{height:100%;border-radius:4px;transition:.6s ease}
+.progress-green{background:var(--green)}
+.progress-blue{background:var(--blue)}
+.progress-yellow{background:var(--yellow)}
 
-  /* ── MAIN PANEL ──────────────────────────────────────────── */
-  #main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
+/* ── Table ─────────────────────────────────────────────── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{
+  text-align:left;padding:10px 12px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.5px;
+  color:var(--muted);text-transform:uppercase;
+  border-bottom:1px solid var(--border);white-space:nowrap;
+}
+td{padding:9px 12px;border-bottom:1px solid var(--border2);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.td-mono{font-family:var(--mono);font-size:12px}
+.td-num{text-align:right;font-family:var(--mono);font-size:13px}
 
-  #topbar {
-    background: var(--bg2);
-    border-bottom: 1px solid var(--border);
-    padding: 14px 24px;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-  #topbar .breadcrumb {
-    font-size: .8rem;
-    color: var(--text2);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  #topbar .breadcrumb span:last-child {
-    color: var(--text);
-    font-weight: 500;
-  }
-  #topbar .sep { color: var(--text3); }
-  .action-btn {
-    margin-left: auto;
-    display: flex;
-    gap: 8px;
-  }
-  .btn {
-    padding: 7px 16px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    cursor: pointer;
-    font-family: var(--font);
-    font-size: .78rem;
-    font-weight: 500;
-    transition: all .15s;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .btn-primary {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
-  }
-  .btn-primary:hover { opacity: .88; }
-  .btn-ghost {
-    background: transparent;
-    color: var(--text2);
-  }
-  .btn-ghost:hover { background: var(--bg3); color: var(--text); }
+/* ── Alert / Notice ────────────────────────────────────── */
+.alert{
+  padding:12px 14px;border-radius:var(--radius);margin-bottom:10px;
+  font-size:13px;display:flex;gap:10px;align-items:flex-start;
+  border-left:3px solid transparent;
+}
+.alert-red{background:var(--red-dim);border-left-color:var(--red);color:#ffa8a4}
+.alert-yellow{background:var(--yellow-dim);border-left-color:var(--yellow);color:#e8c87a}
+.alert-green{background:var(--green-dim);border-left-color:var(--green);color:#89e89e}
+.alert-blue{background:var(--blue-dim);border-left-color:var(--blue);color:#8dbaff}
+.alert-muted{background:var(--surface2);border-left-color:var(--border);color:var(--muted)}
+.alert-icon{font-size:16px;flex-shrink:0;margin-top:1px}
+.alert strong{display:block;font-weight:600;margin-bottom:2px}
 
-  /* ── CONTENT ────────────────────────────────────────────── */
-  #content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 28px 32px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
-  }
+/* ── Stat Grid ─────────────────────────────────────────── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+.stat-card{
+  background:var(--surface2);border:1px solid var(--border2);
+  border-radius:var(--radius);padding:14px 16px;
+}
+.stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.stat-value{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text)}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.stat-value.green{color:var(--green)}
+.stat-value.blue{color:var(--blue)}
+.stat-value.yellow{color:var(--yellow)}
+.stat-value.red{color:var(--red)}
 
-  /* Welcome screen */
-  #welcome {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    gap: 12px;
-    opacity: 1;
-    transition: opacity .3s;
-  }
-  #welcome .big-icon {
-    font-size: 3.5rem;
-    margin-bottom: 8px;
-    filter: drop-shadow(0 0 20px rgba(79,124,255,.4));
-  }
-  #welcome h2 {
-    font-size: 1.5rem;
-    font-weight: 600;
-    letter-spacing: -.02em;
-  }
-  #welcome p {
-    color: var(--text2);
-    font-size: .9rem;
-    max-width: 340px;
-    line-height: 1.6;
-  }
-  .steps {
-    display: flex;
-    gap: 12px;
-    margin-top: 16px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  .step-card {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 16px;
-    width: 160px;
-    text-align: left;
-  }
-  .step-card .num {
-    width: 22px; height: 22px;
-    background: var(--accent);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: .72rem;
-    font-weight: 700;
-    color: #fff;
-    margin-bottom: 8px;
-  }
-  .step-card p {
-    font-size: .78rem;
-    color: var(--text2);
-    line-height: 1.5;
-    max-width: none;
-  }
-  .step-card strong { color: var(--text); font-weight: 500; }
+/* ── Area table ────────────────────────────────────────── */
+.area-row{display:grid;grid-template-columns:1fr 80px 80px 120px;gap:8px;align-items:center;
+  padding:10px 0;border-bottom:1px solid var(--border2)}
+.area-row:last-child{border-bottom:none}
+.area-name{font-weight:500;font-size:13px}
+.area-nums{font-family:var(--mono);font-size:13px;text-align:right}
+.area-bar-wrap{display:flex;flex-direction:column;gap:3px}
+.area-bar-label{font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
 
-  /* Student dashboard */
-  #dashboard { display: none; }
-  #dashboard.visible { display: block; }
+/* ── Materia card ──────────────────────────────────────── */
+.materia-item{
+  padding:10px 12px;border-radius:6px;margin-bottom:6px;
+  background:var(--surface2);border:1px solid var(--border2);
+  display:flex;align-items:flex-start;gap:10px;
+  transition:var(--transition);
+}
+.materia-item:hover{border-color:var(--border);background:var(--surface)}
+.materia-item.priority{border-left:3px solid var(--orange)}
+.materia-item.in-horario{border-left:3px solid var(--blue)}
+.materia-clave{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  background:var(--border2);padding:2px 6px;border-radius:4px;
+  white-space:nowrap;flex-shrink:0;
+}
+.materia-nombre{font-weight:500;font-size:13px;flex:1}
+.materia-area{font-size:11px;color:var(--muted);margin-top:2px}
+.materia-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
 
-  .dash-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 16px;
-    margin-bottom: 28px;
-    flex-wrap: wrap;
-  }
-  .dash-avatar {
-    width: 52px; height: 52px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.3rem;
-    font-weight: 700;
-    color: #fff;
-    flex-shrink: 0;
-  }
-  .dash-info h2 {
-    font-size: 1.1rem;
-    font-weight: 600;
-    letter-spacing: -.01em;
-  }
-  .dash-info .meta {
-    font-size: .78rem;
-    color: var(--text2);
-    margin-top: 3px;
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  .dash-info .meta span {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
+/* ── Horario builder ───────────────────────────────────── */
+.horario-item{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;
+  background:var(--surface2);border:1px solid var(--border2);
+  border-radius:6px;margin-bottom:6px;
+}
+.horario-item .btn-ghost{margin-left:auto;flex-shrink:0}
 
-  /* Stat cards */
-  .stat-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-    gap: 12px;
-    margin-bottom: 28px;
-  }
-  .stat-card {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 16px;
-    transition: border-color .2s;
-  }
-  .stat-card:hover { border-color: var(--accent); }
-  .stat-label {
-    font-size: .68rem;
-    color: var(--text3);
-    text-transform: uppercase;
-    letter-spacing: .08em;
-    margin-bottom: 8px;
-    font-weight: 500;
-  }
-  .stat-value {
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: var(--text);
-    font-family: var(--mono);
-    letter-spacing: -.02em;
-    line-height: 1;
-  }
-  .stat-value.green { color: var(--green); }
-  .stat-value.yellow { color: var(--yellow); }
-  .stat-value.red { color: var(--red); }
-  .stat-sub {
-    font-size: .72rem;
-    color: var(--text3);
-    margin-top: 4px;
-  }
-  .progress-bar {
-    height: 4px;
-    background: var(--bg3);
-    border-radius: 2px;
-    margin-top: 10px;
-    overflow: hidden;
-  }
-  .progress-fill {
-    height: 100%;
-    border-radius: 2px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    transition: width .8s cubic-bezier(.22,1,.36,1);
-  }
+/* ── Search ────────────────────────────────────────────── */
+.search-result{
+  padding:14px;border-radius:var(--radius);margin-top:12px;
+  border:1px solid var(--border);background:var(--surface2);
+}
 
-  /* Sections */
-  .section {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    margin-bottom: 20px;
-    overflow: hidden;
-  }
-  .section-header {
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    user-select: none;
-    transition: background .15s;
-  }
-  .section-header:hover { background: rgba(255,255,255,.02); }
-  .section-title {
-    font-size: .85rem;
-    font-weight: 600;
-    flex: 1;
-  }
-  .section-badge {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 2px 10px;
-    font-size: .7rem;
-    color: var(--text2);
-    font-family: var(--mono);
-  }
-  .section-badge.green { background: rgba(62,207,142,.1); border-color: rgba(62,207,142,.3); color: var(--green); }
-  .section-badge.red   { background: rgba(240,106,106,.1); border-color: rgba(240,106,106,.3); color: var(--red); }
-  .section-badge.yellow { background: rgba(245,166,35,.1); border-color: rgba(245,166,35,.3); color: var(--yellow); }
-  .chevron {
-    color: var(--text3);
-    font-size: .8rem;
-    transition: transform .2s;
-  }
-  .section.collapsed .chevron { transform: rotate(-90deg); }
-  .section-body {
-    padding: 0;
-    transition: max-height .3s ease;
-  }
-  .section.collapsed .section-body { display: none; }
+/* ── Spinner / Loader ──────────────────────────────────── */
+.spinner{
+  width:20px;height:20px;border-radius:50%;
+  border:2px solid var(--border);border-top-color:var(--green);
+  animation:spin .7s linear infinite;display:inline-block;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-overlay{
+  position:fixed;inset:0;background:rgba(13,17,23,.7);
+  display:flex;align-items:center;justify-content:center;
+  z-index:9999;backdrop-filter:blur(4px);flex-direction:column;gap:14px;
+  font-family:var(--mono);font-size:14px;color:var(--green);
+}
+.loading-overlay.hidden{display:none}
 
-  /* Subject list */
-  .subject-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px 18px;
-    border-bottom: 1px solid var(--border);
-    transition: background .1s;
-  }
-  .subject-row:last-child { border-bottom: none; }
-  .subject-row:hover { background: rgba(255,255,255,.02); }
-  .subj-code {
-    font-family: var(--mono);
-    font-size: .72rem;
-    color: var(--accent);
-    padding: 2px 6px;
-    background: rgba(79,124,255,.1);
-    border-radius: 4px;
-    flex-shrink: 0;
-    margin-top: 2px;
-    min-width: 52px;
-    text-align: center;
-  }
-  .subj-code.blocked { color: var(--text3); background: var(--bg3); }
-  .subj-name {
-    font-size: .82rem;
-    color: var(--text);
-    font-weight: 400;
-    flex: 1;
-    line-height: 1.4;
-  }
-  .subj-meta {
-    font-size: .7rem;
-    color: var(--text3);
-    margin-top: 2px;
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .subj-meta span { display: flex; align-items: center; gap: 3px; }
-  .subj-area {
-    font-size: .65rem;
-    padding: 1px 7px;
-    border-radius: 20px;
-    background: var(--bg3);
-    color: var(--text3);
-    border: 1px solid var(--border);
-    flex-shrink: 0;
-    align-self: flex-start;
-    margin-top: 2px;
-  }
-  .lock-reason {
-    font-size: .7rem;
-    color: var(--yellow);
-    margin-top: 3px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
+/* ── Toast ─────────────────────────────────────────────── */
+#toast-container{position:fixed;bottom:24px;right:24px;z-index:9000;display:flex;flex-direction:column;gap:8px}
+.toast{
+  padding:12px 16px;border-radius:var(--radius);font-size:13px;
+  min-width:260px;max-width:380px;
+  display:flex;align-items:center;gap:10px;
+  box-shadow:0 8px 32px rgba(0,0,0,.4);
+  animation:slide-in .2s ease;border:1px solid transparent;
+}
+.toast-green{background:#0e2a1a;border-color:var(--green);color:var(--green)}
+.toast-red{background:var(--red-dim);border-color:var(--red);color:#ffa8a4}
+.toast-blue{background:var(--blue-dim);border-color:var(--blue);color:#8dbaff}
+@keyframes slide-in{from{transform:translateX(100%);opacity:0}to{transform:none;opacity:1}}
 
-  /* Alerts */
-  .alert-row {
-    display: flex;
-    gap: 12px;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--border);
-    align-items: flex-start;
-  }
-  .alert-row:last-child { border-bottom: none; }
-  .alert-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
-  .alert-body { flex: 1; }
-  .alert-type {
-    font-size: .65rem;
-    font-family: var(--mono);
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    color: var(--text3);
-    margin-bottom: 3px;
-  }
-  .alert-desc {
-    font-size: .8rem;
-    color: var(--text2);
-    line-height: 1.5;
-  }
+/* ── Modal ─────────────────────────────────────────────── */
+.modal-backdrop{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);
+  z-index:500;display:flex;align-items:center;justify-content:center;
+  padding:20px;backdrop-filter:blur(4px);
+}
+.modal-backdrop.hidden{display:none}
+.modal{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;width:100%;max-width:520px;
+  max-height:85vh;overflow-y:auto;
+}
+.modal-header{
+  padding:16px 20px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-title{font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.5px}
+.modal-body{padding:20px}
+.modal-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
 
-  /* Area table */
-  .area-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  .area-table th {
-    font-size: .68rem;
-    text-transform: uppercase;
-    letter-spacing: .08em;
-    color: var(--text3);
-    text-align: left;
-    padding: 10px 18px;
-    border-bottom: 1px solid var(--border);
-    font-weight: 500;
-  }
-  .area-table th:not(:first-child) { text-align: right; }
-  .area-table td {
-    padding: 11px 18px;
-    font-size: .8rem;
-    border-bottom: 1px solid var(--border);
-    vertical-align: middle;
-  }
-  .area-table tr:last-child td { border-bottom: none; }
-  .area-table td:not(:first-child) {
-    text-align: right;
-    font-family: var(--mono);
-    font-size: .78rem;
-    color: var(--text2);
-  }
-  .mini-bar {
-    display: inline-flex;
-    width: 60px;
-    height: 4px;
-    background: var(--bg3);
-    border-radius: 2px;
-    overflow: hidden;
-    vertical-align: middle;
-    margin-left: 8px;
-  }
-  .mini-fill {
-    height: 100%;
-    background: var(--accent);
-    border-radius: 2px;
-  }
+/* ── Sections ──────────────────────────────────────────── */
+.section-title{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 
-  /* Loading spinner */
-  .spinner {
-    display: inline-block;
-    width: 14px; height: 14px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin .6s linear infinite;
-    vertical-align: middle;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+/* ── Empty State ───────────────────────────────────────── */
+.empty{text-align:center;padding:40px;color:var(--muted);font-size:13px}
+.empty-icon{font-size:32px;display:block;margin-bottom:10px}
 
-  /* Toast */
-  #toast {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 12px 18px;
-    font-size: .82rem;
-    color: var(--text);
-    box-shadow: var(--shadow);
-    transform: translateY(80px);
-    opacity: 0;
-    transition: all .3s cubic-bezier(.22,1,.36,1);
-    z-index: 9999;
-    max-width: 320px;
-  }
-  #toast.show {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  #toast.toast-ok   { border-color: var(--green); }
-  #toast.toast-err  { border-color: var(--red); }
+/* ── Filter chips ──────────────────────────────────────── */
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.chip{
+  padding:4px 12px;border-radius:20px;font-size:12px;cursor:pointer;
+  border:1px solid var(--border);background:transparent;color:var(--muted);
+  transition:var(--transition);
+}
+.chip:hover{border-color:var(--green);color:var(--green)}
+.chip.active{background:var(--green-dim);border-color:var(--green);color:var(--green)}
 
-  /* Loading overlay */
-  #loading-overlay {
-    display: none;
-    position: absolute;
-    inset: 0;
-    background: rgba(13,15,20,.7);
-    backdrop-filter: blur(4px);
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 12px;
-    z-index: 100;
-    color: var(--text2);
-    font-size: .85rem;
-  }
-  #loading-overlay.show { display: flex; }
-  .big-spinner {
-    width: 36px; height: 36px;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin .7s linear infinite;
-  }
+/* ── Welcome screen ────────────────────────────────────── */
+#welcome{text-align:center;padding:60px 20px}
+#welcome .wc-icon{font-size:56px;margin-bottom:20px;display:block}
+#welcome h1{font-family:var(--mono);font-size:28px;font-weight:700;margin-bottom:8px}
+#welcome p{color:var(--muted);max-width:500px;margin:0 auto 28px}
 
-  /* ── PREFERENCIAS PANEL ──────────────────────────────────── */
-  #prefs-panel {
-    border-top: 1px solid var(--border);
-    padding: 10px 12px 6px;
-    flex-shrink: 0;
-  }
-  .prefs-title {
-    font-size: .65rem;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--text3);
-    padding: 0 4px 8px;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .prefs-title span { flex:1; }
-  .prefs-collapse-btn {
-    background: none; border: none; color: var(--text3);
-    cursor: pointer; font-size: .75rem; padding: 0;
-    transition: color .15s;
-  }
-  .prefs-collapse-btn:hover { color: var(--text2); }
+/* ── Alumno header ─────────────────────────────────────── */
+.alumno-header{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px 20px;margin-bottom:20px;
+  display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;
+}
+.alumno-avatar{
+  width:46px;height:46px;border-radius:50%;
+  background:var(--green-dim);border:2px solid var(--green);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:18px;font-weight:700;color:var(--green);
+  flex-shrink:0;
+}
+.alumno-info{flex:1;min-width:0}
+.alumno-nombre{font-size:17px;font-weight:700;margin-bottom:2px}
+.alumno-meta{font-size:12px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+.alumno-meta span{display:flex;align-items:center;gap:4px}
+.alumno-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
-  .pref-group { margin-bottom: 10px; }
-  .pref-label {
-    font-size: .72rem;
-    color: var(--text2);
-    margin-bottom: 5px;
-    padding: 0 4px;
-    display: flex; align-items: center; gap: 5px;
-  }
-  .orientacion-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4px;
-  }
-  .ori-btn {
-    padding: 5px 6px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text2);
-    font-size: .68rem;
-    font-family: var(--font);
-    cursor: pointer;
-    transition: all .15s;
-    text-align: center;
-    line-height: 1.3;
-  }
-  .ori-btn:hover { border-color: var(--accent); color: var(--text); }
-  .ori-btn.active {
-    background: rgba(79,124,255,.15);
-    border-color: var(--accent);
-    color: var(--accent);
-    font-weight: 500;
-  }
-  .ori-btn.all-btn { grid-column: 1 / -1; }
+/* ── Responsive ────────────────────────────────────────── */
+@media(max-width:768px){
+  main{padding:14px}
+  .form-row,.grid-2,.grid-3{grid-template-columns:1fr}
+  .tabs{overflow-x:auto;gap:0}
+  .tab{padding:8px 12px;font-size:12px}
+  .alumno-header{flex-direction:column}
+}
 
-  .checkbox-row {
-    display: flex; align-items: center; gap: 8px;
-    padding: 5px 6px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background .15s;
-    margin-bottom: 2px;
-  }
-  .checkbox-row:hover { background: var(--bg3); }
-  .checkbox-row input[type=checkbox] {
-    width: 14px; height: 14px;
-    accent-color: var(--accent);
-    cursor: pointer; flex-shrink: 0;
-  }
-  .checkbox-row label {
-    font-size: .74rem; color: var(--text2); cursor: pointer; line-height: 1.3;
-  }
-  .checkbox-row.checked label { color: var(--green); }
-
-  /* Horario upload */
-  .horario-area {
-    border: 1px dashed var(--border);
-    border-radius: 8px;
-    padding: 8px 10px;
-    text-align: center;
-    cursor: pointer;
-    transition: all .2s;
-    background: transparent;
-  }
-  .horario-area:hover { border-color: var(--accent); background: rgba(79,124,255,.05); }
-  .horario-area p { font-size: .72rem; color: var(--text3); line-height: 1.4; }
-  .horario-area strong { color: var(--accent); font-weight: 500; }
-  #horario-status {
-    font-size: .7rem; padding: 3px 4px; min-height: 16px;
-    color: var(--text3);
-  }
-  #horario-status.ok { color: var(--green); }
-  #horario-status.loading { color: var(--yellow); }
-  #horario-status.err { color: var(--red); }
-
-  /* Materias excluidas tags */
-  .excluded-tags {
-    display: flex; flex-wrap: wrap; gap: 4px;
-    padding: 4px 0;
-    max-height: 72px; overflow-y: auto;
-  }
-  .excl-tag {
-    background: rgba(240,106,106,.1);
-    border: 1px solid rgba(240,106,106,.25);
-    color: var(--red);
-    font-size: .62rem;
-    font-family: var(--mono);
-    padding: 2px 6px;
-    border-radius: 20px;
-    display: flex; align-items: center; gap: 4px;
-  }
-  .excl-tag button {
-    background: none; border: none; color: var(--red);
-    cursor: pointer; font-size: .7rem; padding: 0; line-height: 1;
-  }
-  .clear-excluded {
-    font-size: .67rem; color: var(--text3); cursor: pointer;
-    background: none; border: none; padding: 0 4px;
-    text-decoration: underline; transition: color .15s;
-  }
-  .clear-excluded:hover { color: var(--red); }
-
-  /* Active filter indicator in topbar */
-  .filter-pill {
-    font-size: .68rem;
-    padding: 3px 8px;
-    background: rgba(79,124,255,.12);
-    border: 1px solid rgba(79,124,255,.25);
-    border-radius: 20px;
-    color: var(--accent);
-    display: flex; align-items: center; gap: 4px;
-  }
-
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
-
-  /* Responsive */
-  @media (max-width: 700px) {
-    #sidebar { width: 220px; min-width: 220px; }
-    #content { padding: 16px; }
-  }
+/* ── Utility ───────────────────────────────────────────── */
+.flex{display:flex;align-items:center}
+.gap-8{gap:8px}
+.gap-12{gap:12px}
+.ml-auto{margin-left:auto}
+.mt-12{margin-top:12px}
+.mt-16{margin-top:16px}
+.mt-20{margin-top:20px}
+.mb-0{margin-bottom:0}
+.mb-8{margin-bottom:8px}
+.mb-12{margin-bottom:12px}
+.text-green{color:var(--green)}
+.text-red{color:var(--red)}
+.text-yellow{color:var(--yellow)}
+.text-blue{color:var(--blue)}
+.text-muted{color:var(--muted)}
+.text-mono{font-family:var(--mono)}
+.text-sm{font-size:12px}
+.text-xs{font-size:11px}
+.fw-700{font-weight:700}
+.hidden{display:none!important}
+.separator{border:none;border-top:1px solid var(--border2);margin:16px 0}
 </style>
 </head>
 <body>
 
-<!-- LOADING OVERLAY -->
-<div id="loading-overlay">
-  <div class="big-spinner"></div>
-  <span id="loading-msg">Cargando...</span>
+<!-- Loading Overlay -->
+<div class="loading-overlay hidden" id="loader">
+  <div class="spinner" style="width:36px;height:36px;border-width:3px"></div>
+  <span id="loader-msg">Cargando...</span>
 </div>
 
-<!-- SIDEBAR -->
-<aside id="sidebar">
-  <div class="logo-area">
-    <h1>Smart<span>Kardex</span></h1>
-    <p>Sistema UDG / IELC</p>
-  </div>
+<!-- Toast Container -->
+<div id="toast-container"></div>
 
-  <!-- Upload kárdex PDF -->
-  <div id="upload-area" onclick="document.getElementById('file-input').click()">
-    <div class="upload-icon">📄</div>
-    <p>Sube un <strong>kárdex PDF</strong><br>de la UDG para cargarlo</p>
+<!-- Orientation Modal -->
+<div class="modal-backdrop hidden" id="modal-orientacion">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">🎓 CONFIGURACIÓN DE PERFIL</span>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-orientacion')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="text-muted text-sm mb-12">Configura tu perfil para que las sugerencias sean más precisas. Puedes cambiar esto después.</p>
+      <div class="form-group">
+        <label>Orientación elegida</label>
+        <select id="select-orientacion">
+          <option value="">— Sin definir —</option>
+          <option value="OT">Telecomunicaciones</option>
+          <option value="OO">Optoelectrónica</option>
+          <option value="OSE">Sistemas Embebidos</option>
+          <option value="OV">Visualización</option>
+          <option value="AG">General</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <p class="section-title">Actividades extracurriculares</p>
+        <div class="checkbox-row mb-8">
+          <input type="checkbox" id="chk-servicio" />
+          <label for="chk-servicio" style="margin:0">Ya realicé el Servicio Social</label>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="chk-practicas" />
+          <label for="chk-practicas" style="margin:0">Ya realicé Prácticas Profesionales</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-orientacion')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarPerfil()">💾 Guardar perfil</button>
+    </div>
   </div>
-  <input type="file" id="file-input" accept=".pdf">
-  <div id="upload-status"></div>
+</div>
 
-  <!-- Student list -->
-  <div class="sidebar-section">
-    <h3>Alumnos cargados</h3>
+<!-- Add Horario Item Modal -->
+<div class="modal-backdrop hidden" id="modal-horario">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">📅 AGREGAR AL HORARIO</span>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-horario')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="text-muted text-sm mb-12">Ingresa las materias que tienes registradas en tu horario actual. <strong>No</strong> se sumarán a tus créditos adquiridos, pero sí se tomarán en cuenta en las sugerencias.</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Clave *</label>
+          <input type="text" id="h-clave" placeholder="I5890" style="text-transform:uppercase"/>
+        </div>
+        <div class="form-group">
+          <label>Créditos</label>
+          <input type="number" id="h-creditos" placeholder="6" min="0" max="12"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Nombre de la materia *</label>
+        <input type="text" id="h-nombre" placeholder="ELECTRONICA DIGITAL" style="text-transform:uppercase"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-horario')">Cancelar</button>
+      <button class="btn btn-primary" onclick="agregarHorarioItem()">➕ Agregar</button>
+    </div>
   </div>
-  <div id="student-list">
-    <div id="no-students" style="font-size:.78rem;color:var(--text3);padding:8px 18px;line-height:1.6;">
-      Aún no hay alumnos.<br>Sube un PDF para empezar.
+</div>
+
+<!-- Sugerir Materia Modal -->
+<div class="modal-backdrop hidden" id="modal-sugerir">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <span class="modal-title">🔍 BUSCAR / EQUIVALENCIA</span>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-sugerir')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="text-muted text-sm mb-12">Busca una materia por clave o nombre. Si no la encontramos, te mostraremos las materias del área para equivalencia.</p>
+      <div class="flex gap-8 mb-12">
+        <input type="text" id="sugerir-query" placeholder="Ej: I5890 o Electrónica Digital..." style="flex:1"/>
+        <button class="btn btn-primary" onclick="buscarMateria()">Buscar</button>
+      </div>
+      <div id="sugerir-resultado"></div>
+      <!-- Area selector (mostrado si filtro 3) -->
+      <div id="sugerir-area-selector" class="hidden mt-12">
+        <label>¿A qué área pertenece esta materia?</label>
+        <select id="sugerir-area" onchange="buscarPorArea()">
+          <option value="">— Seleccionar área —</option>
+        </select>
+        <div id="sugerir-area-lista" class="mt-12"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<header>
+  <a class="logo" href="#">
+    <span>SK</span>
+    <span class="logo-badge">UDG</span>
+  </a>
+  <span class="header-sub">Smartkardex — Sistema de Análisis Académico</span>
+  <div class="header-right">
+    <button class="btn btn-ghost btn-sm" id="btn-new" onclick="showWelcome()" title="Cargar nuevo kárdex">+ Nuevo</button>
+    <button class="btn btn-ghost btn-sm" id="btn-perfil" onclick="openModal('modal-orientacion')" title="Configurar perfil" style="display:none">⚙️ Perfil</button>
+  </div>
+</header>
+
+<main>
+  <!-- ── Welcome ── -->
+  <div id="welcome">
+    <span class="wc-icon">🎓</span>
+    <h1>Smartkardex</h1>
+    <p>Sube tu kárdex en PDF para analizar tu avance académico, recibir sugerencias de materias y detectar alertas institucionales.</p>
+    <div class="card" style="max-width:480px;margin:0 auto">
+      <div class="card-header">📄 CARGAR KÁRDEX PDF</div>
+      <div class="card-body">
+        <div id="upload-zone" onclick="document.getElementById('file-input').click()">
+          <input type="file" id="file-input" accept=".pdf" onchange="handleFileSelect(this)" />
+          <span class="upload-icon">📂</span>
+          <div class="upload-title">Arrastra tu PDF aquí</div>
+          <div class="upload-sub">o haz clic para seleccionar • Solo archivos PDF</div>
+        </div>
+        <div class="mt-12 flex gap-8" style="justify-content:center">
+          <button class="btn btn-primary" id="btn-upload" onclick="uploadKardex()" disabled>
+            <span class="spinner hidden" id="upload-spinner" style="width:14px;height:14px;border-width:2px"></span>
+            Analizar kárdex
+          </button>
+        </div>
+        <p class="text-muted text-xs mt-12" style="text-align:center">Tu PDF se procesa localmente en el servidor. No se comparte con terceros.</p>
+      </div>
     </div>
   </div>
 
-  <!-- ── PREFERENCIAS DEL ANÁLISIS ─────────────────────────── -->
-  <div id="prefs-panel">
-    <div class="prefs-title">
-      <span>⚙️ Preferencias del análisis</span>
-      <button class="prefs-collapse-btn" id="prefs-toggle" onclick="togglePrefs()" title="Colapsar">▾</button>
+  <!-- ── Dashboard ── -->
+  <div id="dashboard" class="hidden">
+
+    <!-- Alumno header -->
+    <div class="alumno-header" id="alumno-header">
+      <div class="alumno-avatar" id="alumno-avatar">?</div>
+      <div class="alumno-info">
+        <div class="alumno-nombre" id="alumno-nombre">—</div>
+        <div class="alumno-meta" id="alumno-meta"></div>
+      </div>
+      <div class="alumno-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-orientacion')">⚙️ Perfil</button>
+        <button class="btn btn-secondary btn-sm" onclick="reanalizar()">🔄 Reanalizar</button>
+        <button class="btn btn-danger btn-sm" onclick="eliminarAlumno()">🗑 Borrar</button>
+      </div>
     </div>
-    <div id="prefs-body">
 
-      <!-- 1. Orientación -->
-      <div class="pref-group">
-        <div class="pref-label">🎯 Orientación</div>
-        <div class="orientacion-grid" id="ori-grid">
-          <button class="ori-btn all-btn active" data-ori="" onclick="setOrientacion(this,'')">Todas las áreas</button>
-          <button class="ori-btn" data-ori="Telecomunicaciones"   onclick="setOrientacion(this,'Telecomunicaciones')">Telecom.</button>
-          <button class="ori-btn" data-ori="Optoelectrónica"      onclick="setOrientacion(this,'Optoelectrónica')">Optoelectr.</button>
-          <button class="ori-btn" data-ori="Sistemas Embebidos"   onclick="setOrientacion(this,'Sistemas Embebidos')">Embebidos</button>
-          <button class="ori-btn" data-ori="Visualización"        onclick="setOrientacion(this,'Visualización')">Visualiz.</button>
-          <button class="ori-btn" data-ori="General"              onclick="setOrientacion(this,'General')">General</button>
+    <!-- Stats -->
+    <div class="stats-grid" id="stats-grid"></div>
+
+    <!-- Tabs -->
+    <div class="tabs" id="main-tabs">
+      <div class="tab active" onclick="switchTab('tab-avance')" data-tab="tab-avance">📊 Avance</div>
+      <div class="tab" onclick="switchTab('tab-sugerencias')" data-tab="tab-sugerencias">✅ Sugerencias</div>
+      <div class="tab" onclick="switchTab('tab-horario')" data-tab="tab-horario">📅 Horario</div>
+      <div class="tab" onclick="switchTab('tab-alertas')" data-tab="tab-alertas" id="tab-alertas-btn">⚠️ Alertas</div>
+      <div class="tab" onclick="switchTab('tab-bloqueadas')" data-tab="tab-bloqueadas">🔒 Bloqueadas</div>
+      <div class="tab" onclick="switchTab('tab-buscar')" data-tab="tab-buscar">🔍 Equivalencia</div>
+    </div>
+
+    <!-- ── Tab: Avance por área ── -->
+    <div class="tab-panel active" id="tab-avance">
+      <div class="card">
+        <div class="card-header">📊 AVANCE POR ÁREA DE FORMACIÓN</div>
+        <div class="card-body">
+          <div id="area-list"></div>
         </div>
       </div>
+    </div>
 
-      <!-- 2. Servicio Social / Prácticas -->
-      <div class="pref-group">
-        <div class="pref-label">📋 Ya realizó</div>
-        <div class="checkbox-row" id="row-ss" onclick="toggleCheck('chk-ss','row-ss')">
-          <input type="checkbox" id="chk-ss">
-          <label for="chk-ss">Servicio Social</label>
+    <!-- ── Tab: Sugerencias ── -->
+    <div class="tab-panel" id="tab-sugerencias">
+      <div class="flex gap-8 mb-12">
+        <div class="chips" id="filter-chips" style="margin-bottom:0;flex:1">
+          <button class="chip active" onclick="filterDisponibles('all')">Todas</button>
+          <button class="chip" onclick="filterDisponibles('priority')">⚡ Prioritarias</button>
+          <button class="chip" onclick="filterDisponibles('BC')">Básico Común</button>
+          <button class="chip" onclick="filterDisponibles('BPO')">Bás. Particular</button>
+          <button class="chip" onclick="filterDisponibles('EO')">Esp. Obligatoria</button>
+          <button class="chip" onclick="filterDisponibles('ES')">Esp. Selectiva</button>
+          <button class="chip" onclick="filterDisponibles('OA')">Optativa</button>
         </div>
-        <div class="checkbox-row" id="row-pp" onclick="toggleCheck('chk-pp','row-pp')">
-          <input type="checkbox" id="chk-pp">
-          <label for="chk-pp">Prácticas Profesionales</label>
-        </div>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-sugerir')">🔍 Buscar</button>
       </div>
+      <div id="disponibles-list"></div>
+    </div>
 
-      <!-- 3. Horario actual -->
-      <div class="pref-group">
-        <div class="pref-label">📅 Horario actual <span style="color:var(--text3);font-size:.65rem;">(excluye materias en curso)</span></div>
-        <div class="horario-area" onclick="document.getElementById('horario-input').click()">
-          <p>Sube PDF o imagen de tu <strong>horario</strong></p>
-        </div>
-        <input type="file" id="horario-input" accept=".pdf,image/*" style="display:none;">
-        <div id="horario-status"></div>
-        <div id="excluded-wrap" style="display:none;">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 4px 4px;">
-            <span style="font-size:.67rem;color:var(--text3);">Materias excluidas:</span>
-            <button class="clear-excluded" onclick="clearExcluded()">Limpiar ✕</button>
+    <!-- ── Tab: Horario ── -->
+    <div class="tab-panel" id="tab-horario">
+      <div class="card mb-12">
+        <div class="card-header">
+          📅 MI HORARIO ACTUAL
+          <div class="ml-auto flex gap-8">
+            <span class="text-muted text-xs" id="horario-cal-label">—</span>
+            <button class="btn btn-primary btn-sm" onclick="openModal('modal-horario')">+ Agregar</button>
           </div>
-          <div class="excluded-tags" id="excluded-tags"></div>
+        </div>
+        <div class="card-body">
+          <div class="form-group mb-12">
+            <label>Calendario del horario</label>
+            <input type="text" id="horario-calendario" placeholder="Ej: 2025-B" style="max-width:180px"
+              oninput="document.getElementById('horario-cal-label').textContent=this.value||'—'" />
+          </div>
+          <div id="horario-items">
+            <div class="empty"><span class="empty-icon">📭</span>Aún no has agregado materias al horario.</div>
+          </div>
+          <div class="flex gap-8 mt-12">
+            <span class="text-muted text-sm" id="horario-creditos-label">0 créditos en horario</span>
+            <button class="btn btn-primary btn-sm ml-auto" onclick="guardarHorario()">💾 Guardar horario</button>
+          </div>
         </div>
       </div>
-
-    </div><!-- /prefs-body -->
-  </div><!-- /prefs-panel -->
-
-  <!-- Bottom -->
-  <div class="sidebar-bottom">
-    <div class="plan-badge">
-      <div class="dot" id="plan-dot"></div>
-      <span id="plan-label">Plan de estudios</span>
+      <div class="alert alert-blue">
+        <span class="alert-icon">ℹ️</span>
+        <div>Los créditos del horario <strong>no se suman</strong> a tus créditos adquiridos, pero sí se muestran en el avance por área para que puedas ver cómo quedarías al terminar el semestre.</div>
+      </div>
     </div>
-  </div>
-</aside>
 
-<!-- MAIN -->
-<main id="main" style="position:relative;">
-  <!-- Topbar -->
-  <div id="topbar">
-    <div class="breadcrumb">
-      <span>Smartkardex</span>
-      <span class="sep">›</span>
-      <span id="topbar-title">Inicio</span>
+    <!-- ── Tab: Alertas ── -->
+    <div class="tab-panel" id="tab-alertas">
+      <div id="alertas-list"></div>
     </div>
-    <div class="action-btn" id="topbar-actions" style="display:none;">
-      <div id="filter-pills" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-      <button class="btn btn-primary" onclick="analizarActual()">
-        <span class="spinner" id="analyze-spinner" style="display:none;"></span>
-        🔍 Analizar
-      </button>
-    </div>
-  </div>
 
-  <!-- Content -->
-  <div id="content">
-    <!-- Welcome -->
-    <div id="welcome">
-      <div class="big-icon">🎓</div>
-      <h2>Sistema de Análisis Académico</h2>
-      <p>Sube un kárdex PDF de la UDG y obtén un análisis completo: materias disponibles, bloqueadas y alertas académicas.</p>
-      <div class="steps">
-        <div class="step-card">
-          <div class="num">1</div>
-          <p>Sube un <strong>PDF de kárdex</strong> UDG desde el panel izquierdo</p>
-        </div>
-        <div class="step-card">
-          <div class="num">2</div>
-          <p>Selecciona un <strong>alumno</strong> de la lista para ver su resumen</p>
-        </div>
-        <div class="step-card">
-          <div class="num">3</div>
-          <p>Haz clic en <strong>Analizar</strong> para ver materias disponibles y alertas</p>
+    <!-- ── Tab: Bloqueadas ── -->
+    <div class="tab-panel" id="tab-bloqueadas">
+      <div class="card">
+        <div class="card-header">🔒 MATERIAS BLOQUEADAS</div>
+        <div class="card-body">
+          <p class="text-muted text-sm mb-12">Estas materias aún no están disponibles porque falta aprobar algún prerrequisito.</p>
+          <div id="bloqueadas-list"></div>
         </div>
       </div>
     </div>
 
-    <!-- Dashboard (hidden until student selected) -->
-    <div id="dashboard"></div>
-  </div>
+    <!-- ── Tab: Buscar / Equivalencia ── -->
+    <div class="tab-panel" id="tab-buscar">
+      <div class="card">
+        <div class="card-header">🔍 BUSCAR MATERIA / EQUIVALENCIA (3 FILTROS)</div>
+        <div class="card-body">
+          <p class="text-muted text-sm mb-12">
+            Busca por <strong>clave exacta</strong> (ej: I5890), por <strong>nombre similar</strong>, o si no encontramos nada, indica el área y te mostramos las materias disponibles para equivalencia.
+          </p>
+          <div class="flex gap-8 mb-0">
+            <input type="text" id="tab-sugerir-query" placeholder="Clave o nombre de la materia..." style="flex:1"
+              onkeydown="if(event.key==='Enter')buscarMateriaTab()"/>
+            <button class="btn btn-primary" onclick="buscarMateriaTab()">Buscar</button>
+          </div>
+          <div id="tab-sugerir-resultado" class="mt-12"></div>
+          <div id="tab-sugerir-area-selector" class="hidden mt-12">
+            <label>¿A qué área pertenece esta materia?</label>
+            <select id="tab-sugerir-area" onchange="buscarPorAreaTab()">
+              <option value="">— Seleccionar área —</option>
+            </select>
+            <div id="tab-sugerir-area-lista" class="mt-12"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /dashboard -->
 </main>
 
-<!-- TOAST -->
-<div id="toast"></div>
-
 <script>
-const API = "/api";
-let currentAlumno = null;
-let studentsData   = {};
-
-// ── Estado de preferencias ───────────────────────────────────
-const prefs = {
-  orientacion:      '',          // '' = todas
-  servicioSocial:   false,
-  practicasProfesionales: false,
-  excluidas: new Set(),          // claves de materias en horario actual
+/* ════════════════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════════════════ */
+const API = '';
+let state = {
+  codigo: null,
+  analisis: null,
+  horario: [],       // lista temporal local
+  filtroArea: 'all',
 };
 
-// ── Utilities ────────────────────────────────────────────────
+/* ════════════════════════════════════════════════════════
+   UTILS
+════════════════════════════════════════════════════════ */
+function showLoader(msg='Procesando...'){
+  document.getElementById('loader').classList.remove('hidden');
+  document.getElementById('loader-msg').textContent=msg;
+}
+function hideLoader(){document.getElementById('loader').classList.add('hidden')}
 
-function toast(msg, type='ok', duration=3500) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `show toast-${type}`;
-  clearTimeout(t._to);
-  t._to = setTimeout(() => t.className = '', duration);
+function toast(msg, type='green', dur=3500){
+  const c=document.getElementById('toast-container');
+  const t=document.createElement('div');
+  t.className=`toast toast-${type}`;
+  t.innerHTML=`<span>${type==='green'?'✓':type==='red'?'✕':'ℹ'}</span><span>${msg}</span>`;
+  c.appendChild(t);
+  setTimeout(()=>t.remove(),dur);
 }
 
-function loading(show, msg='Procesando...') {
-  const el = document.getElementById('loading-overlay');
-  document.getElementById('loading-msg').textContent = msg;
-  el.classList.toggle('show', show);
+function openModal(id){document.getElementById(id).classList.remove('hidden')}
+function closeModal(id){document.getElementById(id).classList.add('hidden')}
+
+function switchTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelector(`[data-tab="${id}"]`).classList.add('active');
+  document.getElementById(id).classList.add('active');
 }
 
-function initials(name='') {
-  return name.split(' ').slice(0,2).map(w => w[0] || '').join('').toUpperCase() || '?';
+function initials(name=''){
+  return (name||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?';
 }
 
-// ── Init ─────────────────────────────────────────────────────
-
-async function init() {
-  await checkPlan();
-  await loadStudents();
+function pctColor(pct){
+  if(pct>=100)return'var(--green)';
+  if(pct>=70)return'var(--blue)';
+  if(pct>=40)return'var(--yellow)';
+  return'var(--red)';
 }
 
-async function checkPlan() {
-  try {
-    const r = await fetch(`${API}/plan/status`);
-    if (!r.ok) throw new Error('API error');
-    const d = await r.json();
-    const dot   = document.getElementById('plan-dot');
-    const label = document.getElementById('plan-label');
-    if (d.cargado) {
-      dot.classList.add('loaded');
-      label.textContent = `Plan cargado (${d.total_materias} materias)`;
-    } else {
-      label.textContent = 'Importando plan…';
-      await fetch(`${API}/plan/importar`, { method: 'POST' });
-      await checkPlan();
-    }
-  } catch(e) {
-    const dot   = document.getElementById('plan-dot');
-    const label = document.getElementById('plan-label');
-    dot.classList.remove('loaded');
-    label.textContent = 'API no disponible';
-    // Reintentar en 5 segundos
-    setTimeout(checkPlan, 5000);
-  }
-}
+/* ════════════════════════════════════════════════════════
+   UPLOAD & LOAD
+════════════════════════════════════════════════════════ */
+let selectedFile=null;
 
-async function loadStudents() {
-  try {
-    const r = await fetch(`${API}/alumnos`);
-    const students = await r.json();
-    studentsData = {};
-    students.forEach(s => studentsData[s.codigo] = s);
-    renderStudentList(students);
-  } catch(e) {}
-}
-
-function renderStudentList(students) {
-  const list = document.getElementById('student-list');
-  const none = document.getElementById('no-students');
-
-  // Clear old items (keep no-students)
-  [...list.querySelectorAll('.student-item')].forEach(e => e.remove());
-
-  if (!students.length) {
-    none.style.display = 'block';
-    return;
-  }
-  none.style.display = 'none';
-
-  students.forEach(s => {
-    const div = document.createElement('div');
-    div.className = 'student-item' + (currentAlumno === s.codigo ? ' active' : '');
-    div.dataset.codigo = s.codigo;
-    div.innerHTML = `
-      <div class="student-avatar">${initials(s.nombre)}</div>
-      <div class="student-info">
-        <div class="student-name">${s.nombre}</div>
-        <div class="student-code">${s.codigo}</div>
-      </div>
-      <button class="student-delete" title="Eliminar" onclick="deleteStudent(event,'${s.codigo}')">✕</button>
-    `;
-    div.addEventListener('click', (e) => {
-      if (e.target.classList.contains('student-delete')) return;
-      selectStudent(s.codigo);
-    });
-    list.appendChild(div);
-  });
-}
-
-// ── Upload PDF ───────────────────────────────────────────────
-
-const uploadArea = document.getElementById('upload-area');
-const fileInput  = document.getElementById('file-input');
-
-uploadArea.addEventListener('dragover',  e => { e.preventDefault(); uploadArea.classList.add('dragging'); });
-uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragging'));
-uploadArea.addEventListener('drop', e => {
-  e.preventDefault();
-  uploadArea.classList.remove('dragging');
-  const file = e.dataTransfer.files[0];
-  if (file) uploadPDF(file);
+const uploadZone=document.getElementById('upload-zone');
+uploadZone.addEventListener('dragover',e=>{e.preventDefault();uploadZone.classList.add('drag-over')});
+uploadZone.addEventListener('dragleave',()=>uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop',e=>{
+  e.preventDefault();uploadZone.classList.remove('drag-over');
+  const f=e.dataTransfer.files[0];
+  if(f&&f.name.endsWith('.pdf')){selectedFile=f;setFileReady(f)}
+  else toast('Solo se aceptan archivos PDF','red');
 });
 
-fileInput.addEventListener('change', () => {
-  if (fileInput.files[0]) uploadPDF(fileInput.files[0]);
-  fileInput.value = '';
-});
+function handleFileSelect(input){
+  selectedFile=input.files[0]||null;
+  if(selectedFile)setFileReady(selectedFile);
+}
 
-async function uploadPDF(file) {
-  if (!file.name.toLowerCase().endsWith('.pdf')) {
-    setUploadStatus('Solo se aceptan archivos PDF', 'err');
-    return;
-  }
-  setUploadStatus(`<span class="spinner"></span> Subiendo ${file.name}…`, 'loading');
-  loading(true, `Procesando ${file.name}…`);
+function setFileReady(f){
+  uploadZone.innerHTML=`
+    <input type="file" id="file-input" accept=".pdf" onchange="handleFileSelect(this)" />
+    <span class="upload-icon">✅</span>
+    <div class="upload-title">${f.name}</div>
+    <div class="upload-sub">${(f.size/1024).toFixed(1)} KB • listo para analizar</div>`;
+  document.getElementById('btn-upload').disabled=false;
+}
 
-  const fd = new FormData();
-  fd.append('pdf', file);
-
-  try {
-    const r = await fetch(`${API}/kardex/cargar`, { method: 'POST', body: fd });
-    const d = await r.json();
-    if (d.ok && d.alumno) {
-      setUploadStatus(`✓ ${d.alumno.nombre}`, 'ok');
-      toast(`✅ Kárdex cargado: ${d.alumno.nombre}`, 'ok');
-      // Primero recargar la lista para que studentsData esté actualizado
-      await loadStudents();
-      // Luego seleccionar con el código exacto que devuelve la BD
-      await selectStudent(d.alumno.codigo);
+async function uploadKardex(){
+  if(!selectedFile){toast('Selecciona un PDF primero','red');return}
+  showLoader('Procesando kárdex...');
+  const sp=document.getElementById('upload-spinner');
+  sp.classList.remove('hidden');
+  const fd=new FormData();
+  fd.append('pdf',selectedFile);
+  try{
+    const r=await fetch(`${API}/api/kardex/cargar`,{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.ok&&d.alumno){
+      state.codigo=d.alumno.codigo;
+      toast(`Kárdex de ${d.alumno.nombre} cargado correctamente`,'green');
+      await cargarDashboard();
+      // Si es primera vez → pedir perfil
+      if(!d.alumno.orientacion_elegida){
+        setTimeout(()=>openModal('modal-orientacion'),700);
+      }
     } else {
-      setUploadStatus(d.error || 'Error al procesar PDF', 'err');
-      toast(`❌ ${d.error || 'Error al procesar PDF'}`, 'err');
+      toast(d.error||'Error al procesar el PDF','red');
     }
-  } catch(e) {
-    setUploadStatus('No se pudo conectar con el servidor', 'err');
-    toast('❌ No se pudo conectar con el servidor', 'err');
-  } finally {
-    loading(false);
-  }
+  }catch(e){toast('Error de conexión','red')}
+  finally{hideLoader();sp.classList.add('hidden')}
 }
 
-function setUploadStatus(html, type='') {
-  const s = document.getElementById('upload-status');
-  s.innerHTML = html;
-  s.className = type;
-}
-
-// ── Student selection ────────────────────────────────────────
-
-async function selectStudent(codigo) {
-  currentAlumno = codigo;
-
-  // Actualizar sidebar highlight (puede que studentsData aún no tenga este código)
-  document.querySelectorAll('.student-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.codigo === codigo);
-  });
-
-  // Usar nombre si ya está en studentsData, si no usar el código temporalmente
-  const student = studentsData[codigo];
-  document.getElementById('topbar-title').textContent = student?.nombre || codigo;
-  document.getElementById('topbar-actions').style.display = 'flex';
-  document.getElementById('welcome').style.display = 'none';
-
-  // Show loading state
-  const dash = document.getElementById('dashboard');
-  dash.className = 'visible';
-  dash.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text3);">
-    <div class="big-spinner" style="margin:0 auto 12px;"></div>
-    <p>Cargando datos del alumno…</p>
-  </div>`;
-
-  try {
-    const r = await fetch(`${API}/alumnos/${codigo}`);
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      dash.innerHTML = `<p style="color:var(--red);padding:20px">❌ ${err.error || 'Error al cargar alumno'}</p>`;
-      toast(`❌ ${err.error || 'Alumno no encontrado'}`, 'err');
-      return;
-    }
-    const d = await r.json();
-    if (d.error) { dash.innerHTML = `<p style="color:var(--red);padding:20px">${d.error}</p>`; return; }
-    // Actualizar el topbar con el nombre real de la BD
-    document.getElementById('topbar-title').textContent = d.alumno?.nombre || codigo;
+async function cargarDashboard(){
+  if(!state.codigo)return;
+  showLoader('Analizando datos...');
+  try{
+    const r=await fetch(`${API}/api/alumnos/${state.codigo}/analizar`);
+    const d=await r.json();
+    if(d.error){toast(d.error,'red');return}
+    state.analisis=d;
     renderDashboard(d);
-  } catch(e) {
-    dash.innerHTML = `<p style="color:var(--red);padding:20px">❌ No se pudo conectar con el servidor</p>`;
-  }
+    // Cargar horario guardado
+    await cargarHorarioRemoto();
+    document.getElementById('welcome').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+    document.getElementById('btn-perfil').style.display='';
+  }catch(e){toast('Error al cargar análisis','red')}
+  finally{hideLoader()}
 }
 
-// ── Dashboard render ─────────────────────────────────────────
+async function cargarHorarioRemoto(){
+  try{
+    const r=await fetch(`${API}/api/alumnos/${state.codigo}/horario`);
+    const d=await r.json();
+    if(Array.isArray(d)){
+      state.horario=d.map(h=>({clave:h.clave,nombre:h.nombre,creditos:h.creditos||0,calendario:h.calendario}));
+      renderHorario();
+    }
+  }catch(e){}
+}
 
-function renderDashboard(data) {
-  const { alumno, materias, creditos_area } = data;
-  const cred_pct = alumno.creditos_requeridos
-    ? Math.round(alumno.creditos_adquiridos / alumno.creditos_requeridos * 100)
-    : 0;
+function showWelcome(){
+  document.getElementById('dashboard').classList.add('hidden');
+  document.getElementById('welcome').classList.remove('hidden');
+  document.getElementById('btn-perfil').style.display='none';
+  state.codigo=null;state.analisis=null;
+}
 
-  const aprobadas = materias.filter(m => m.estatus === 'APROBADA').length;
-  const reprobadas = materias.filter(m => {
-    const group = materias.filter(x => x.clave === m.clave);
-    return m.estatus === 'REPROBADA' && !group.some(x => x.estatus === 'APROBADA');
-  });
-  const repActivas = [...new Set(reprobadas.map(m => m.clave))].length;
+async function reanalizar(){
+  if(!state.codigo)return;
+  showLoader('Reanalizando...');
+  try{
+    const r=await fetch(`${API}/api/alumnos/${state.codigo}/analizar`);
+    const d=await r.json();
+    if(d.error){toast(d.error,'red');return}
+    state.analisis=d;
+    renderDashboard(d);
+    toast('Análisis actualizado','green');
+  }catch(e){toast('Error','red')}
+  finally{hideLoader()}
+}
 
-  const dash = document.getElementById('dashboard');
-  dash.className = 'visible';
-  dash.innerHTML = `
-    <div class="dash-header">
-      <div class="dash-avatar">${initials(alumno.nombre)}</div>
-      <div class="dash-info">
-        <h2>${alumno.nombre}</h2>
-        <div class="meta">
-          <span>🎓 ${alumno.carrera || 'N/D'}</span>
-          <span>🪪 ${alumno.codigo}</span>
-          <span>📅 Último ciclo: ${alumno.ultimo_ciclo || '—'}</span>
-          <span>${alumno.situacion || ''}</span>
+async function eliminarAlumno(){
+  if(!state.codigo)return;
+  if(!confirm(`¿Eliminar al alumno ${state.codigo} de la base de datos?`))return;
+  showLoader('Eliminando...');
+  try{
+    const r=await fetch(`${API}/api/alumnos/${state.codigo}`,{method:'DELETE'});
+    const d=await r.json();
+    if(d.ok){toast('Alumno eliminado','green');showWelcome()}
+    else toast(d.error||'Error','red');
+  }catch(e){toast('Error','red')}
+  finally{hideLoader()}
+}
+
+/* ════════════════════════════════════════════════════════
+   RENDER DASHBOARD
+════════════════════════════════════════════════════════ */
+function renderDashboard(d){
+  const al=d.alumno||{};
+  const ini=initials(al.nombre);
+  document.getElementById('alumno-avatar').textContent=ini;
+  document.getElementById('alumno-nombre').textContent=al.nombre||'Alumno';
+  document.getElementById('alumno-meta').innerHTML=`
+    <span>🎓 ${al.carrera||'N/D'}</span>
+    <span class="text-mono">#${al.codigo||'—'}</span>
+    <span>📅 Último ciclo: ${al.ultimo_ciclo||'—'}</span>
+    <span>${situacionBadge(al.situacion)}</span>
+    ${al.orientacion_elegida?`<span>🧭 ${oriNombre(al.orientacion_elegida)}</span>`:''}
+  `;
+
+  // Stats
+  const credAdq=d.creditos_propios||al.creditos_adquiridos||0;
+  const credReq=al.creditos_requeridos||423;
+  const pct=(credAdq/credReq*100).toFixed(1);
+  const alertasCrit=(d.alertas||[]).filter(a=>['ARTICULO_33','ARTICULO_33_CONSECUTIVO','DISCREPANCIA_CREDITOS'].includes(a.tipo)).length;
+
+  document.getElementById('stats-grid').innerHTML=`
+    <div class="stat-card">
+      <div class="stat-label">Créditos (propio)</div>
+      <div class="stat-value ${credAdq>=credReq?'green':''}">${credAdq}</div>
+      <div class="stat-sub">de ${credReq} requeridos (${pct}%)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Promedio</div>
+      <div class="stat-value ${(al.promedio||0)>=70?'green':'red'}">${(al.promedio||0).toFixed(2)}</div>
+      <div class="stat-sub">Mínimo aprobatorio: 60</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Materias disponibles</div>
+      <div class="stat-value blue">${(d.disponibles||[]).length}</div>
+      <div class="stat-sub">${(d.disponibles||[]).filter(m=>m.prioritaria).length} prioritarias</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Alertas activas</div>
+      <div class="stat-value ${alertasCrit>0?'red':'green'}">${(d.alertas||[]).length}</div>
+      <div class="stat-sub">${alertasCrit} críticas</div>
+    </div>
+    ${d.discrepancia_creditos!==0?`
+    <div class="stat-card" style="border-color:var(--yellow)">
+      <div class="stat-label" style="color:var(--yellow)">Discrepancia créditos</div>
+      <div class="stat-value yellow">${d.discrepancia_creditos>0?'+':''}${d.discrepancia_creditos}</div>
+      <div class="stat-sub">Kárdex vs conteo propio</div>
+    </div>`:''}
+  `;
+
+  renderAreas(d.por_area||[]);
+  renderAlertas(d.alertas||[]);
+  renderDisponibles(d.disponibles||[]);
+  renderBloqueadas(d.bloqueadas||[]);
+
+  // Populate perfil modal
+  if(al.orientacion_elegida)document.getElementById('select-orientacion').value=al.orientacion_elegida;
+  document.getElementById('chk-servicio').checked=!!(al.servicio_social);
+  document.getElementById('chk-practicas').checked=!!(al.practicas_profesionales);
+}
+
+function situacionBadge(s){
+  const map={ACTIVO:'badge-green',BAJA:'badge-red',EGRESADO:'badge-blue',TITULADO:'badge-blue'};
+  return`<span class="badge ${map[s]||'badge-muted'}">${s||'—'}</span>`;
+}
+
+function oriNombre(cod){
+  const m={OT:'Telecomunicaciones',OO:'Optoelectrónica',OSE:'Sistemas Embebidos',OV:'Visualización',AG:'General',OH:'Humanidades'};
+  return m[cod]||cod;
+}
+
+/* ── Areas ── */
+function renderAreas(areas){
+  const el=document.getElementById('area-list');
+  if(!areas.length){el.innerHTML='<div class="empty">Sin datos de áreas</div>';return}
+  el.innerHTML=areas.map(a=>{
+    const req=a.requeridos_oficial||a.creditos_plan||0;
+    const adq=a.creditos_aprobados||0;
+    const hor=a.creditos_en_horario||0;
+    const pct=req>0?Math.min(100,(adq/req*100)):0;
+    const pctHor=req>0?Math.min(100,((adq+hor)/req*100)):0;
+    const color=pctColor(pct);
+    const completa=adq>=req;
+    return`
+    <div class="area-row">
+      <div>
+        <div class="area-name">${a.area||a.area_cod} ${completa?'<span class="badge badge-green" style="font-size:10px">✓ Completa</span>':''}</div>
+        <div class="text-xs text-muted">${a.aprobadas||0} de ${a.total_plan||0} materias aprobadas${hor>0?` · <span class="text-blue">${hor} cr en horario</span>`:''}</div>
+      </div>
+      <div class="area-nums text-muted">${adq}</div>
+      <div class="area-nums">${req}</div>
+      <div class="area-bar-wrap">
+        <div class="area-bar-label"><span style="color:${color}">${pct.toFixed(0)}%</span>${hor>0?`<span class="text-blue">${pctHor.toFixed(0)}% c/horario</span>`:''}</div>
+        <div class="progress-wrap" style="position:relative">
+          <div class="progress-bar" style="width:${pct}%;background:${color}"></div>
+          ${hor>0?`<div style="position:absolute;top:0;left:${pct}%;width:${Math.min(pctHor-pct,100-pct)}%;height:100%;background:var(--blue);opacity:.5;border-radius:0 4px 4px 0"></div>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ── Alertas ── */
+function renderAlertas(alertas){
+  const el=document.getElementById('alertas-list');
+  // Inyectar badge count en tab
+  const tabBtn=document.getElementById('tab-alertas-btn');
+  if(alertas.length>0)tabBtn.innerHTML=`⚠️ Alertas <span class="badge badge-red" style="font-size:10px">${alertas.length}</span>`;
+
+  if(!alertas.length){el.innerHTML='<div class="alert alert-green"><span class="alert-icon">✅</span><div>Sin alertas activas. ¡Todo en orden!</div></div>';return}
+
+  const tipoClass={
+    ARTICULO_33_CONSECUTIVO:'alert-red',
+    ARTICULO_33:'alert-red',
+    DISCREPANCIA_CREDITOS:'alert-yellow',
+    DISCREPANCIA_AREA:'alert-yellow',
+    RECORDATORIO_REPROBADA:'alert-blue',
+    PROMEDIO_BAJO:'alert-red',
+    PRACTICAS:'alert-blue',
+    PRACTICAS_COMPLETADAS:'alert-green',
+    SERVICIO_SOCIAL:'alert-green',
+    SERVICIO_COMPLETADO:'alert-green',
+    SERVICIO_PENDIENTE:'alert-muted',
+  };
+
+  el.innerHTML=alertas.map(a=>{
+    const cls=tipoClass[a.tipo]||'alert-muted';
+    return`<div class="alert ${cls}">
+      <span class="alert-icon">${a.icono||'⚠️'}</span>
+      <div><strong>${labelTipo(a.tipo)}</strong>${a.descripcion}</div>
+    </div>`;
+  }).join('');
+}
+
+function labelTipo(tipo){
+  const m={
+    ARTICULO_33_CONSECUTIVO:'🚨 Artículo 33 — Consecutivo: ',
+    ARTICULO_33:'⚠️ Artículo 33: ',
+    DISCREPANCIA_CREDITOS:'Discrepancia de créditos: ',
+    DISCREPANCIA_AREA:'Discrepancia por área: ',
+    RECORDATORIO_REPROBADA:'📌 Recordatorio: ',
+    PROMEDIO_BAJO:'Promedio bajo: ',
+    PRACTICAS:'Prácticas Profesionales: ',
+    SERVICIO_SOCIAL:'Servicio Social: ',
+  };
+  return m[tipo]||'';
+}
+
+/* ── Disponibles ── */
+let _disponibles=[];
+function renderDisponibles(mats){
+  _disponibles=mats;
+  filterDisponibles(state.filtroArea);
+}
+function filterDisponibles(area){
+  state.filtroArea=area;
+  document.querySelectorAll('#filter-chips .chip').forEach(c=>c.classList.remove('active'));
+  event&&event.target&&event.target.classList.add('active');
+
+  let list=_disponibles;
+  if(area==='priority') list=list.filter(m=>m.prioritaria);
+  else if(area!=='all') list=list.filter(m=>m.area_cod===area);
+
+  const el=document.getElementById('disponibles-list');
+  if(!list.length){el.innerHTML='<div class="empty"><span class="empty-icon">✅</span>No hay materias disponibles con este filtro.</div>';return}
+  el.innerHTML=list.map(m=>`
+    <div class="materia-item ${m.prioritaria?'priority':''} ${m.en_horario?'in-horario':''}">
+      <span class="materia-clave">${m.clave}</span>
+      <div style="flex:1">
+        <div class="materia-nombre">${m.nombre}</div>
+        <div class="materia-area">${m.area}${m.orientacion?' · '+m.orientacion:''}</div>
+        <div class="materia-badges">
+          <span class="badge badge-muted">${m.creditos} cr</span>
+          ${m.prioritaria?'<span class="badge badge-orange">⚡ Prioritaria</span>':''}
+          ${m.en_horario?'<span class="badge badge-blue">📅 En horario</span>':''}
+          ${m.estado&&m.estado.startsWith('Pre')?`<span class="badge badge-green" style="font-size:10px">${m.estado}</span>`:''}
         </div>
       </div>
     </div>
-
-    <div class="stat-grid">
-      <div class="stat-card">
-        <div class="stat-label">Créditos</div>
-        <div class="stat-value">${alumno.creditos_adquiridos}</div>
-        <div class="stat-sub">de ${alumno.creditos_requeridos} requeridos</div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${cred_pct}%"></div></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Avance</div>
-        <div class="stat-value ${cred_pct >= 80 ? 'green' : cred_pct >= 50 ? 'yellow' : ''}">${cred_pct}%</div>
-        <div class="stat-sub">del plan de estudios</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Promedio</div>
-        <div class="stat-value ${alumno.promedio >= 80 ? 'green' : alumno.promedio >= 70 ? 'yellow' : 'red'}">${(alumno.promedio||0).toFixed(1)}</div>
-        <div class="stat-sub">calificación promedio</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Aprobadas</div>
-        <div class="stat-value green">${aprobadas}</div>
-        <div class="stat-sub">materias finales</div>
-      </div>
-      ${repActivas > 0 ? `
-      <div class="stat-card">
-        <div class="stat-label">Reprobadas activas</div>
-        <div class="stat-value red">${repActivas}</div>
-        <div class="stat-sub">sin aprobar aún</div>
-      </div>` : ''}
-    </div>
-
-    <!-- Progreso por área -->
-    ${renderAreaTable(creditos_area)}
-
-    <div style="padding:16px 0 8px;color:var(--text2);font-size:.8rem;">
-      💡 Haz clic en <strong style="color:var(--text)">Analizar</strong> (arriba a la derecha) para ver las materias disponibles para el próximo ciclo y alertas académicas.
-    </div>
-  `;
-}
-
-function renderAreaTable(areas) {
-  if (!areas || !areas.length) return '';
-  return `
-    <div class="section">
-      <div class="section-header" onclick="toggleSection(this)">
-        <span style="font-size:1rem">📊</span>
-        <span class="section-title">Avance por área de formación</span>
-        <span class="chevron">▾</span>
-      </div>
-      <div class="section-body">
-        <table class="area-table">
-          <thead>
-            <tr>
-              <th>Área</th>
-              <th>Cr. Adquiridos</th>
-              <th>Cr. Requeridos</th>
-              <th>Faltantes</th>
-              <th>Avance</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${areas.map(a => {
-              const adq = a.adquiridos ?? 0;
-              const req = a.requeridos ?? 0;
-              const pct = req > 0 ? Math.min(100, Math.round(adq / req * 100)) : 0;
-              return `<tr>
-                <td style="color:var(--text)">${a.area || '—'}</td>
-                <td style="color:var(--green)">${adq}</td>
-                <td>${req}</td>
-                <td style="color:${a.faltantes > 0 ? 'var(--yellow)' : 'var(--green)'}">${a.faltantes ?? 0}</td>
-                <td>
-                  ${pct}%
-                  <span class="mini-bar"><span class="mini-fill" style="width:${pct}%"></span></span>
-                </td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-// ── Analyze ──────────────────────────────────────────────────
-
-async function analizarActual() {
-  if (!currentAlumno) return;
-  const btn = document.querySelector('#topbar-actions .btn-primary');
-  const spinner = document.getElementById('analyze-spinner');
-  btn.disabled = true;
-  spinner.style.display = 'inline-block';
-
-  try {
-    const r = await fetch(`${API}/alumnos/${currentAlumno}/analizar`);
-    const d = await r.json();
-    if (!r.ok || d.error) {
-      toast(`❌ ${d.error || 'Error al analizar'}`, 'err');
-      return;
-    }
-    renderAnalysis(d);
-  } catch(e) {
-    toast('❌ No se pudo conectar con el servidor', 'err');
-  } finally {
-    btn.disabled = false;
-    spinner.style.display = 'none';
-  }
-}
-
-function renderAnalysis(data) {
-  const { alumno, disponibles, bloqueadas, alertas, por_area } = data;
-
-  // ── Aplicar filtros de preferencias ──────────────────────────
-  const { filtered, alertasFiltradas } = aplicarFiltros(disponibles, alertas);
-
-  // Resumen de filtros aplicados
-  const filtrosActivos = [];
-  if (prefs.excluidas.size > 0)
-    filtrosActivos.push(`${prefs.excluidas.size} en horario actual excluidas`);
-  if (prefs.orientacion)
-    filtrosActivos.push(`orientación: ${prefs.orientacion}`);
-  if (prefs.servicioSocial)
-    filtrosActivos.push('Servicio Social marcado como realizado');
-  if (prefs.practicasProfesionales)
-    filtrosActivos.push('Prácticas marcadas como realizadas');
-
-  const dash = document.getElementById('dashboard');
-  const existing = dash.querySelector('.analysis-results');
-  if (existing) existing.remove();
-
-  const analysisDiv = document.createElement('div');
-  analysisDiv.className = 'analysis-results';
-
-  analysisDiv.innerHTML = `
-    <div style="padding:4px 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <h3 style="font-size:.95rem;font-weight:600;color:var(--text)">📋 Análisis del próximo ciclo</h3>
-      <span style="font-size:.72rem;color:var(--text3)">— ${filtered.length} disponibles · ${bloqueadas.length} bloqueadas · ${alertasFiltradas.length} alertas</span>
-    </div>
-
-    ${filtrosActivos.length ? `
-    <div style="background:rgba(79,124,255,.07);border:1px solid rgba(79,124,255,.18);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:.74rem;color:var(--text2);line-height:1.6;">
-      <strong style="color:var(--accent);">⚙️ Filtros activos:</strong><br>
-      ${filtrosActivos.map(f => `• ${f}`).join('<br>')}
-    </div>` : ''}
-
-    ${renderAlertas(alertasFiltradas)}
-    ${renderDisponibles(filtered)}
-    ${renderBloqueadas(bloqueadas)}
-    ${renderAreaTableAnalysis(por_area)}
-  `;
-
-  dash.appendChild(analysisDiv);
-  analysisDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function renderAlertas(alertas) {
-  if (!alertas || !alertas.length) return '';
-  const hasUrgent = alertas.some(a => a.tipo === 'ARTICULO_33');
-  return `
-    <div class="section">
-      <div class="section-header" onclick="toggleSection(this)">
-        <span style="font-size:1rem">⚠️</span>
-        <span class="section-title">Alertas institucionales</span>
-        <span class="section-badge ${hasUrgent ? 'red' : 'yellow'}">${alertas.length}</span>
-        <span class="chevron">▾</span>
-      </div>
-      <div class="section-body">
-        ${alertas.map(a => `
-          <div class="alert-row">
-            <div class="alert-icon">${a.icono}</div>
-            <div class="alert-body">
-              <div class="alert-type">${a.tipo.replace(/_/g,' ')}</div>
-              <div class="alert-desc">${a.descripcion}</div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-}
-
-function renderDisponibles(disponibles) {
-  if (!disponibles || !disponibles.length) {
-    return `<div class="section">
-      <div class="section-header">
-        <span>✅</span>
-        <span class="section-title">Materias disponibles</span>
-        <span class="section-badge">0</span>
-      </div>
-    </div>`;
-  }
-
-  // Group by area
-  const byArea = {};
-  disponibles.forEach(d => {
-    if (!byArea[d.area]) byArea[d.area] = [];
-    byArea[d.area].push(d);
-  });
-
-  return `
-    <div class="section">
-      <div class="section-header" onclick="toggleSection(this)">
-        <span style="font-size:1rem">✅</span>
-        <span class="section-title">Materias disponibles para el próximo ciclo</span>
-        <span class="section-badge green">${disponibles.length}</span>
-        <span class="chevron">▾</span>
-      </div>
-      <div class="section-body">
-        ${Object.entries(byArea).map(([area, mats]) => `
-          <div style="padding:8px 18px 4px;font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);border-bottom:1px solid var(--border);background:rgba(255,255,255,.01);">${area}</div>
-          ${mats.map(d => `
-            <div class="subject-row">
-              <div class="subj-code">${d.clave}</div>
-              <div style="flex:1;min-width:0;">
-                <div class="subj-name">${d.nombre}</div>
-                <div class="subj-meta">
-                  <span>📚 ${d.creditos} créditos</span>
-                  ${d.orientacion ? `<span>🎯 ${d.orientacion}</span>` : ''}
-                  ${d.estado !== 'Sin prerrequisito' ? `<span style="color:var(--green)">✓ ${d.estado}</span>` : '<span>Sin prerrequisito</span>'}
-                </div>
-              </div>
-            </div>
-          `).join('')}
-        `).join('')}
-      </div>
-    </div>
-  `;
-}
-
-function renderBloqueadas(bloqueadas) {
-  if (!bloqueadas || !bloqueadas.length) return '';
-  return `
-    <div class="section collapsed">
-      <div class="section-header" onclick="toggleSection(this)">
-        <span style="font-size:1rem">🔒</span>
-        <span class="section-title">Materias bloqueadas</span>
-        <span class="section-badge red">${bloqueadas.length}</span>
-        <span class="chevron">▾</span>
-      </div>
-      <div class="section-body">
-        ${bloqueadas.map(b => `
-          <div class="subject-row">
-            <div class="subj-code blocked">${b.clave}</div>
-            <div style="flex:1;min-width:0;">
-              <div class="subj-name" style="color:var(--text2)">${b.nombre}</div>
-              <div class="lock-reason">🔒 Requiere: <strong>${b.prerrequisito}</strong></div>
-              ${b.orientacion ? `<div class="subj-meta"><span>🎯 ${b.orientacion}</span></div>` : ''}
-            </div>
-            <div class="subj-area">${b.area_cod}</div>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-}
-
-function renderAreaTableAnalysis(por_area) {
-  if (!por_area || !por_area.length) return '';
-  return `
-    <div class="section collapsed">
-      <div class="section-header" onclick="toggleSection(this)">
-        <span style="font-size:1rem">📊</span>
-        <span class="section-title">Detalle de avance por área</span>
-        <span class="chevron">▾</span>
-      </div>
-      <div class="section-body">
-        <table class="area-table">
-          <thead>
-            <tr>
-              <th>Área</th>
-              <th>Plan</th>
-              <th>Aprobadas</th>
-              <th>Cr. Plan</th>
-              <th>Cr. Adq.</th>
-              <th>Avance</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${por_area.map(a => {
-              const pct = a.total_plan > 0 ? Math.round(a.aprobadas / a.total_plan * 100) : 0;
-              return `<tr>
-                <td style="color:var(--text)">${a.area}</td>
-                <td>${a.total_plan}</td>
-                <td style="color:var(--green)">${a.aprobadas}</td>
-                <td>${a.creditos_plan}</td>
-                <td>${a.creditos_aprobados}</td>
-                <td>${pct}%<span class="mini-bar"><span class="mini-fill" style="width:${pct}%"></span></span></td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-// ── Delete ───────────────────────────────────────────────────
-
-async function deleteStudent(e, codigo) {
-  e.stopPropagation();
-  if (!confirm(`¿Eliminar al alumno ${codigo}?`)) return;
-  try {
-    await fetch(`${API}/alumnos/${codigo}`, { method: 'DELETE' });
-    if (currentAlumno === codigo) {
-      currentAlumno = null;
-      document.getElementById('dashboard').className = '';
-      document.getElementById('welcome').style.display = 'flex';
-      document.getElementById('topbar-title').textContent = 'Inicio';
-      document.getElementById('topbar-actions').style.display = 'none';
-    }
-    await loadStudents();
-    toast('✅ Alumno eliminado', 'ok');
-  } catch(e) {
-    toast('❌ Error al eliminar', 'err');
-  }
-}
-
-// ── Section toggle ────────────────────────────────────────────
-
-function toggleSection(header) {
-  header.closest('.section').classList.toggle('collapsed');
-}
-
-// ── Preferencias UI ──────────────────────────────────────────
-
-function togglePrefs() {
-  const body = document.getElementById('prefs-body');
-  const btn  = document.getElementById('prefs-toggle');
-  const hidden = body.style.display === 'none';
-  body.style.display = hidden ? '' : 'none';
-  btn.textContent = hidden ? '▾' : '▸';
-}
-
-function setOrientacion(btn, value) {
-  prefs.orientacion = value;
-  document.querySelectorAll('.ori-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  updateFilterPills();
-}
-
-function toggleCheck(checkId, rowId) {
-  const chk = document.getElementById(checkId);
-  chk.checked = !chk.checked;
-  const row = document.getElementById(rowId);
-  row.classList.toggle('checked', chk.checked);
-  if (checkId === 'chk-ss')  prefs.servicioSocial = chk.checked;
-  if (checkId === 'chk-pp')  prefs.practicasProfesionales = chk.checked;
-  updateFilterPills();
-}
-
-function updateFilterPills() {
-  const container = document.getElementById('filter-pills');
-  if (!container) return;
-  container.innerHTML = '';
-
-  if (prefs.orientacion) {
-    const p = document.createElement('div');
-    p.className = 'filter-pill';
-    p.innerHTML = `🎯 ${prefs.orientacion}`;
-    container.appendChild(p);
-  }
-  if (prefs.servicioSocial) {
-    const p = document.createElement('div');
-    p.className = 'filter-pill';
-    p.innerHTML = `✅ Serv. Social hecho`;
-    container.appendChild(p);
-  }
-  if (prefs.practicasProfesionales) {
-    const p = document.createElement('div');
-    p.className = 'filter-pill';
-    p.innerHTML = `✅ Prácticas hechas`;
-    container.appendChild(p);
-  }
-  if (prefs.excluidas.size > 0) {
-    const p = document.createElement('div');
-    p.className = 'filter-pill';
-    p.innerHTML = `📅 ${prefs.excluidas.size} en horario`;
-    container.appendChild(p);
-  }
-}
-
-// ── Horario upload via Claude API ─────────────────────────────
-
-document.getElementById('horario-input').addEventListener('change', async function() {
-  const file = this.files[0];
-  if (!file) return;
-  this.value = '';
-  await procesarHorario(file);
-});
-
-async function procesarHorario(file) {
-  setHorarioStatus('⏳ Leyendo horario con IA…', 'loading');
-
-  // Convertir archivo a base64
-  const base64 = await fileToBase64(file);
-  const isPDF  = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-  const mediaType = isPDF ? 'application/pdf' : (file.type || 'image/jpeg');
-
-  const prompt = `Eres un asistente que extrae información de horarios universitarios de la UDG.
-Analiza este ${isPDF ? 'PDF' : 'imagen'} de horario y extrae SOLO las claves de materias (códigos como IE101, IE203, CC301, etc.).
-Responde ÚNICAMENTE con un objeto JSON sin texto adicional ni backticks:
-{"claves": ["IE101", "IE203", ...]}
-Si no encuentras claves, responde: {"claves": []}
-No incluyas ningún otro texto, solo el JSON.`;
-
-  try {
-    const body = {
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      messages: [{
-        role: "user",
-        content: [
-          isPDF
-            ? { type: "document", source: { type: "base64", media_type: mediaType, data: base64 } }
-            : { type: "image",    source: { type: "base64", media_type: mediaType, data: base64 } },
-          { type: "text", text: prompt }
-        ]
-      }]
-    };
-
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-
-    const data = await r.json();
-    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-
-    let parsed;
-    try {
-      const clean = text.replace(/```json|```/g, '').trim();
-      parsed = JSON.parse(clean);
-    } catch(e) {
-      // Extraer JSON del texto si viene con texto extra
-      const match = text.match(/\{[\s\S]*\}/);
-      parsed = match ? JSON.parse(match[0]) : { claves: [] };
-    }
-
-    const claves = (parsed.claves || []).map(c => c.trim().toUpperCase()).filter(Boolean);
-
-    if (claves.length === 0) {
-      setHorarioStatus('⚠️ No se encontraron claves — verifica el archivo', 'err');
-      return;
-    }
-
-    // Agregar al set de excluidas
-    claves.forEach(c => prefs.excluidas.add(c));
-    renderExcluidas();
-    setHorarioStatus(`✓ ${claves.length} materias detectadas en horario`, 'ok');
-    updateFilterPills();
-    toast(`📅 ${claves.length} materias del horario serán excluidas del análisis`, 'ok');
-
-  } catch(e) {
-    console.error(e);
-    setHorarioStatus('❌ Error al procesar — intenta de nuevo', 'err');
-  }
-}
-
-function fileToBase64(file) {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload  = () => res(r.result.split(',')[1]);
-    r.onerror = () => rej(new Error('Error leyendo archivo'));
-    r.readAsDataURL(file);
-  });
-}
-
-function setHorarioStatus(msg, type='') {
-  const s = document.getElementById('horario-status');
-  s.textContent = msg;
-  s.className = type;
-}
-
-function renderExcluidas() {
-  const wrap = document.getElementById('excluded-wrap');
-  const cont = document.getElementById('excluded-tags');
-  if (prefs.excluidas.size === 0) {
-    wrap.style.display = 'none';
-    return;
-  }
-  wrap.style.display = '';
-  cont.innerHTML = [...prefs.excluidas].map(c => `
-    <span class="excl-tag">
-      ${c}
-      <button onclick="removeExcluida('${c}')" title="Quitar">✕</button>
-    </span>
   `).join('');
 }
 
-function removeExcluida(clave) {
-  prefs.excluidas.delete(clave);
-  renderExcluidas();
-  updateFilterPills();
-  if (prefs.excluidas.size === 0) setHorarioStatus('', '');
+/* ── Bloqueadas ── */
+function renderBloqueadas(mats){
+  const el=document.getElementById('bloqueadas-list');
+  if(!mats.length){el.innerHTML='<div class="empty">Sin materias bloqueadas — ¡todos los prerrequisitos cumplidos!</div>';return}
+  el.innerHTML=`<div class="table-wrap"><table>
+    <thead><tr><th>Clave</th><th>Materia</th><th>Área</th><th>Créditos</th><th>Falta aprobar</th></tr></thead>
+    <tbody>${mats.map(m=>`
+    <tr>
+      <td class="td-mono">${m.clave}</td>
+      <td>${m.nombre}</td>
+      <td class="text-muted text-sm">${m.area}</td>
+      <td class="td-num">${m.creditos}</td>
+      <td><span class="badge badge-red">🔒 ${m.prerrequisito}</span></td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
 }
 
-function clearExcluded() {
-  prefs.excluidas.clear();
-  renderExcluidas();
-  updateFilterPills();
-  setHorarioStatus('', '');
+/* ════════════════════════════════════════════════════════
+   HORARIO
+════════════════════════════════════════════════════════ */
+function agregarHorarioItem(){
+  const clave=document.getElementById('h-clave').value.trim().toUpperCase();
+  const nombre=document.getElementById('h-nombre').value.trim().toUpperCase();
+  const creditos=parseInt(document.getElementById('h-creditos').value)||0;
+  if(!clave||!nombre){toast('Clave y nombre son requeridos','red');return}
+  if(state.horario.find(h=>h.clave===clave)){toast('Esa clave ya está en el horario','red');return}
+  state.horario.push({clave,nombre,creditos});
+  renderHorario();
+  closeModal('modal-horario');
+  document.getElementById('h-clave').value='';
+  document.getElementById('h-nombre').value='';
+  document.getElementById('h-creditos').value='';
+  toast(`${clave} agregada al horario`,'green');
 }
 
-// ── Filtrado de disponibles según preferencias ────────────────
+function quitarHorarioItem(clave){
+  state.horario=state.horario.filter(h=>h.clave!==clave);
+  renderHorario();
+}
 
-function aplicarFiltros(disponibles, alertas) {
-  let filtered = [...disponibles];
-  let alertasFiltradas = [...alertas];
-
-  // 1. Excluir materias del horario actual
-  if (prefs.excluidas.size > 0) {
-    filtered = filtered.filter(m => !prefs.excluidas.has(m.clave?.toUpperCase()));
+function renderHorario(){
+  const el=document.getElementById('horario-items');
+  const total=state.horario.reduce((s,h)=>s+h.creditos,0);
+  document.getElementById('horario-creditos-label').textContent=`${total} créditos en horario`;
+  if(!state.horario.length){
+    el.innerHTML='<div class="empty"><span class="empty-icon">📭</span>Aún no has agregado materias al horario.</div>';
+    return;
   }
+  el.innerHTML=state.horario.map(h=>`
+    <div class="horario-item">
+      <span class="materia-clave">${h.clave}</span>
+      <span style="flex:1;font-weight:500">${h.nombre}</span>
+      <span class="badge badge-blue">${h.creditos} cr</span>
+      <button class="btn btn-ghost btn-sm" onclick="quitarHorarioItem('${h.clave}')" title="Quitar">✕</button>
+    </div>`).join('');
+}
 
-  // 2. Filtrar por orientación (solo aplica a materias especializantes)
-  if (prefs.orientacion) {
-    filtered = filtered.filter(m => {
-      // Las materias sin orientación específica (BC, BPO, EO) siempre se muestran
-      // Solo filtramos las que tienen orientación asignada
-      if (!m.orientacion || m.orientacion.trim() === '') return true;
-      // Normalizar comparación
-      return m.orientacion.toLowerCase().includes(prefs.orientacion.toLowerCase());
+async function guardarHorario(){
+  if(!state.codigo){toast('No hay alumno cargado','red');return}
+  const cal=document.getElementById('horario-calendario').value.trim();
+  if(!cal){toast('Ingresa el calendario (ej: 2025-B)','red');return}
+  if(!state.horario.length){toast('No hay materias en el horario','red');return}
+  showLoader('Guardando horario...');
+  try{
+    const r=await fetch(`${API}/api/alumnos/${state.codigo}/horario`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({calendario:cal,materias:state.horario})
     });
-  }
-
-  // 3. Ocultar alertas de Servicio Social si ya lo hizo
-  if (prefs.servicioSocial) {
-    alertasFiltradas = alertasFiltradas.filter(a =>
-      a.tipo !== 'SERVICIO_SOCIAL' && a.tipo !== 'SERVICIO_PENDIENTE'
-    );
-  }
-
-  // 4. Ocultar alertas de Prácticas si ya las hizo
-  if (prefs.practicasProfesionales) {
-    alertasFiltradas = alertasFiltradas.filter(a => a.tipo !== 'PRACTICAS');
-  }
-
-  return { filtered, alertasFiltradas };
+    const d=await r.json();
+    if(d.ok){
+      toast(`Horario guardado (${d.guardadas} materias)`,'green');
+      await reanalizar();
+    } else toast(d.error||'Error al guardar','red');
+  }catch(e){toast('Error de conexión','red')}
+  finally{hideLoader()}
 }
 
-// ── Start ─────────────────────────────────────────────────────
+/* ════════════════════════════════════════════════════════
+   PERFIL
+════════════════════════════════════════════════════════ */
+async function guardarPerfil(){
+  if(!state.codigo){toast('No hay alumno cargado','red');return}
+  const ori=document.getElementById('select-orientacion').value;
+  const ss=document.getElementById('chk-servicio').checked;
+  const pr=document.getElementById('chk-practicas').checked;
+  showLoader('Guardando perfil...');
+  try{
+    const r=await fetch(`${API}/api/alumnos/${state.codigo}/perfil`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({orientacion:ori,servicio_social:ss,practicas:pr})
+    });
+    const d=await r.json();
+    if(d.ok){
+      toast('Perfil actualizado','green');
+      closeModal('modal-orientacion');
+      await reanalizar();
+    } else toast(d.error||'Error','red');
+  }catch(e){toast('Error de conexión','red')}
+  finally{hideLoader()}
+}
 
-init();
+/* ════════════════════════════════════════════════════════
+   BUSCAR / EQUIVALENCIA (3 filtros)
+════════════════════════════════════════════════════════ */
+function renderSugerirResultado(d, elRes, elAreaSel, elAreaLista, elAreaSelect){
+  elAreaSel.classList.add('hidden');
+  if(!d){elRes.innerHTML='';return}
+
+  if(d.encontrado){
+    const m=d.materia;
+    const filtroLabel={clave:'🔑 Encontrada por clave exacta',nombre:`📝 Encontrada por nombre similar (${Math.round((d.similitud||0)*100)}% similitud)`};
+    elRes.innerHTML=`
+      <div class="alert alert-green">
+        <span class="alert-icon">✅</span>
+        <div><strong>${filtroLabel[d.filtro]||'Encontrada'}</strong>
+          <div class="materia-item mt-12" style="background:var(--green-dim);border-color:var(--green)">
+            <span class="materia-clave">${m.clave}</span>
+            <div style="flex:1">
+              <div class="materia-nombre">${m.materia||m.nombre}</div>
+              <div class="materia-area">${m.area}</div>
+              <div class="materia-badges mt-12">
+                <span class="badge badge-green">${m.creditos} cr</span>
+                ${m.orientacion?`<span class="badge badge-muted">${m.orientacion}</span>`:''}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if(d.filtro==='ninguno'){
+    // Mostrar selector de área
+    elRes.innerHTML=`<div class="alert alert-muted"><span class="alert-icon">🤷</span><div>${d.mensaje}</div></div>`;
+    elAreaSel.classList.remove('hidden');
+    elAreaSelect.innerHTML='<option value="">— Seleccionar área —</option>';
+    (d.areas||[]).sort().forEach(a=>{
+      const o=document.createElement('option');o.value=a;o.textContent=a;elAreaSelect.appendChild(o);
+    });
+    elAreaLista.innerHTML='';
+    return;
+  }
+
+  if(d.filtro==='area'){
+    elRes.innerHTML=`<div class="alert alert-muted"><span class="alert-icon">ℹ️</span><div>${d.mensaje}</div></div>`;
+    elAreaLista.innerHTML=(d.lista_area||[]).map(m=>`
+      <div class="materia-item">
+        <span class="materia-clave">${m.clave}</span>
+        <div style="flex:1">
+          <div class="materia-nombre">${m.materia||m.nombre}</div>
+          <div class="materia-area">${m.area}</div>
+          <div class="materia-badges"><span class="badge badge-muted">${m.creditos} cr</span></div>
+        </div>
+      </div>`).join('')||'<div class="empty">Sin materias disponibles en esa área</div>';
+  }
+}
+
+// En modal
+async function buscarMateria(){
+  if(!state.codigo)return;
+  const q=document.getElementById('sugerir-query').value.trim();
+  if(!q){toast('Ingresa una clave o nombre','red');return}
+  const r=await fetch(`${API}/api/alumnos/${state.codigo}/sugerir?q=${encodeURIComponent(q)}`);
+  const d=await r.json();
+  renderSugerirResultado(d,
+    document.getElementById('sugerir-resultado'),
+    document.getElementById('sugerir-area-selector'),
+    document.getElementById('sugerir-area-lista'),
+    document.getElementById('sugerir-area'));
+}
+
+async function buscarPorArea(){
+  const q=document.getElementById('sugerir-query').value.trim();
+  const area=document.getElementById('sugerir-area').value;
+  if(!area)return;
+  const r=await fetch(`${API}/api/alumnos/${state.codigo}/sugerir?q=${encodeURIComponent(q)}&area=${encodeURIComponent(area)}`);
+  const d=await r.json();
+  document.getElementById('sugerir-area-lista').innerHTML=(d.lista_area||[]).map(m=>`
+    <div class="materia-item">
+      <span class="materia-clave">${m.clave}</span>
+      <div style="flex:1">
+        <div class="materia-nombre">${m.materia||m.nombre}</div>
+        <div class="materia-area">${m.area}</div>
+        <div class="materia-badges"><span class="badge badge-muted">${m.creditos} cr</span></div>
+      </div>
+    </div>`).join('')||'<div class="empty">Sin materias disponibles en esa área</div>';
+}
+
+// En tab
+async function buscarMateriaTab(){
+  if(!state.codigo)return;
+  const q=document.getElementById('tab-sugerir-query').value.trim();
+  if(!q){toast('Ingresa una clave o nombre','red');return}
+  const r=await fetch(`${API}/api/alumnos/${state.codigo}/sugerir?q=${encodeURIComponent(q)}`);
+  const d=await r.json();
+  renderSugerirResultado(d,
+    document.getElementById('tab-sugerir-resultado'),
+    document.getElementById('tab-sugerir-area-selector'),
+    document.getElementById('tab-sugerir-area-lista'),
+    document.getElementById('tab-sugerir-area'));
+}
+
+async function buscarPorAreaTab(){
+  const q=document.getElementById('tab-sugerir-query').value.trim();
+  const area=document.getElementById('tab-sugerir-area').value;
+  if(!area)return;
+  const r=await fetch(`${API}/api/alumnos/${state.codigo}/sugerir?q=${encodeURIComponent(q)}&area=${encodeURIComponent(area)}`);
+  const d=await r.json();
+  document.getElementById('tab-sugerir-area-lista').innerHTML=(d.lista_area||[]).map(m=>`
+    <div class="materia-item">
+      <span class="materia-clave">${m.clave}</span>
+      <div style="flex:1">
+        <div class="materia-nombre">${m.materia||m.nombre}</div>
+        <div class="materia-area">${m.area}</div>
+        <div class="materia-badges"><span class="badge badge-muted">${m.creditos} cr</span></div>
+      </div>
+    </div>`).join('')||'<div class="empty">Sin materias disponibles en esa área</div>';
+}
+
+/* ════════════════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════════════════ */
+// Close modals on backdrop click
+document.querySelectorAll('.modal-backdrop').forEach(b=>{
+  b.addEventListener('click',e=>{if(e.target===b)b.classList.add('hidden')});
+});
+
+// Check if already loaded student on page load
+(async()=>{
+  try{
+    const r=await fetch(`${API}/api/alumnos`);
+    const d=await r.json();
+    if(d&&d.length){
+      state.codigo=d[d.length-1].codigo;
+      await cargarDashboard();
+    }
+  }catch(e){}
+})();
 </script>
 </body>
 </html>
+HTMLEOF
+echo "OK index.html"
