@@ -14,6 +14,22 @@ Correcciones respecto a versiones anteriores:
   - Art. 33 cuenta periodos DISTINTOS de reprobación, no filas individuales
 """
 
+"""
+motor.py — Motor de Inferencia IA para sugerencias académicas
+=============================================================
+Compara el historial del alumno contra el Plan de Estudios IELC y genera:
+  - Materias disponibles para el próximo ciclo (prerrequisitos cumplidos)
+  - Materias bloqueadas y por qué prerrequisito les falta
+  - Alertas institucionales (Art. 33, Servicio Social, Prácticas)
+  - Progreso por área de formación
+
+Correcciones respecto a versiones anteriores:
+  - JOIN correcto por alumno_id (schema real de extractor.py)
+  - Estatus FINAL por materia: si tiene al menos un APROBADA, cuenta como aprobada
+    aunque tenga reprobaciones previas → desbloquea prerrequisitos correctamente
+  - Art. 33 cuenta periodos DISTINTOS de reprobación, no filas individuales
+"""
+
 import re
 from collections import defaultdict
 from difflib import SequenceMatcher
@@ -154,13 +170,13 @@ class MotorInferencia:
  
         # ── 4. Conteo de créditos propios por área ────────────────
         cursor.execute("""
-            SELECT p.area, p.creditos, UPPER(TRIM(m.clave)) as clave_ap
+            SELECT p.area, p.creditos
             FROM plan_estudios p
             JOIN (
                 SELECT UPPER(TRIM(clave)) AS clave FROM materias
                 WHERE alumno_id=? AND estatus='APROBADA'
                 GROUP BY UPPER(TRIM(clave))
-            ) m ON UPPER(TRIM(p.clave)) = m.clave_ap
+            ) m ON UPPER(TRIM(p.clave)) = m.clave
         """, (alumno_id,))
         for r in cursor.fetchall():
             creditos_propios_por_area[r["area"]] += r["creditos"]
@@ -499,4 +515,3 @@ class MotorInferencia:
                   m.get("nombre",""), int(m.get("creditos", 0)), calendario))
         self.conn.commit()
         return {"ok": True, "guardadas": len(materias_horario)}
- 
