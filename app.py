@@ -33,12 +33,13 @@ from extractor import KardexExtractor
 from motor import MotorInferencia
 from plan import importar_plan_estudios
 
-app = Flask(__name__, static_folder=".", static_url_path="")
+app = Flask(__name__, static_folder="static", static_url_path="/static")
 CORS(app)
 
-BASE_DIR = Path(__file__).parent
-DB_FILE  = str(BASE_DIR / "kardex_udg.db")
-CSV_FILE = str(BASE_DIR / "Plan de Estudios IELC - Hoja 6.csv")
+BASE_DIR    = Path(__file__).parent
+STATIC_DIR  = BASE_DIR / "static"
+DB_FILE     = str(BASE_DIR / "kardex_udg.db")
+CSV_FILE    = str(BASE_DIR / "Plan de Estudios IELC - Hoja 6.csv")
 
 
 class CaptureOutput:
@@ -87,7 +88,7 @@ except Exception as _e:
 # ── Frontend ──────────────────────────────────────────────────
 @app.route("/")
 def index():
-    return send_from_directory(".", "index.html")
+    return send_from_directory(str(STATIC_DIR), "index.html")
 
 @app.route("/api/health")
 def health():
