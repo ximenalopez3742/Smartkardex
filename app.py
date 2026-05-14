@@ -2,19 +2,6 @@
 app.py — Smartkardex Web API v2
 Flask backend que expone el sistema de Kárdex UDG como REST API.
 """
-"""
-app.py — Smartkardex Web API v2
-Flask backend que expone el sistema de Kárdex UDG como REST API.
-"""
-"""
-app.py — Smartkardex Web API v2
-Flask backend que expone el sistema de Kárdex UDG como REST API.
-"""
-
-"""
-app.py — Smartkardex Web API v2
-Flask backend que expone el sistema de Kárdex UDG como REST API.
-"""
 
 import os
 import io
@@ -33,13 +20,17 @@ from extractor import KardexExtractor
 from motor import MotorInferencia
 from plan import importar_plan_estudios
 
-app = Flask(__name__, static_folder="static", static_url_path="/static")
+BASE_DIR = Path(__file__).parent
+
+# Detecta automáticamente si index.html está en static/ o en la raíz
+_static_candidates = [BASE_DIR / "static", BASE_DIR]
+_static_dir = next((d for d in _static_candidates if (d / "index.html").exists()), BASE_DIR)
+
+app = Flask(__name__, static_folder=str(_static_dir), static_url_path="/static")
 CORS(app)
 
-BASE_DIR    = Path(__file__).parent
-STATIC_DIR  = BASE_DIR / "static"
-DB_FILE     = str(BASE_DIR / "kardex_udg.db")
-CSV_FILE    = str(BASE_DIR / "Plan de Estudios IELC - Hoja 6.csv")
+DB_FILE  = str(BASE_DIR / "kardex_udg.db")
+CSV_FILE = str(BASE_DIR / "Plan de Estudios IELC - Hoja 6.csv")
 
 
 class CaptureOutput:
@@ -82,13 +73,12 @@ try:
         _log.info("Plan ya cargado (%d materias).", _plan_count)
 except Exception as _e:
     _log.error("ERROR inicializando BD: %s", _e, exc_info=True)
-    # Flask arranca igual para que Render no marque el deploy como caido
 
 
 # ── Frontend ──────────────────────────────────────────────────
 @app.route("/")
 def index():
-    return send_from_directory(str(STATIC_DIR), "index.html")
+    return send_from_directory(str(_static_dir), "index.html")
 
 @app.route("/api/health")
 def health():
@@ -163,11 +153,9 @@ def consultar_alumno(codigo):
 def analizar_alumno(codigo):
     try:
         motor = MotorInferencia(db_path=DB_FILE)
-        # Parámetros opcionales desde query/body
         orientacion = None
         servicio_social = False
         practicas = False
-
         if request.method == "POST":
             data = request.get_json(silent=True) or {}
             orientacion = data.get("orientacion")
@@ -177,7 +165,6 @@ def analizar_alumno(codigo):
             orientacion = request.args.get("orientacion")
             servicio_social = request.args.get("servicio_social", "").lower() == "true"
             practicas = request.args.get("practicas", "").lower() == "true"
-
         with CaptureOutput():
             resultado = motor.analizar(
                 codigo,
@@ -185,7 +172,6 @@ def analizar_alumno(codigo):
                 servicio_social=servicio_social,
                 practicas=practicas,
             )
-
         if resultado is None:
             return jsonify({"error": f"Alumno {codigo} no encontrado"}), 404
         return jsonify(clean(resultado))
@@ -196,13 +182,6 @@ def analizar_alumno(codigo):
 # ── Horario ───────────────────────────────────────────────────
 @app.route("/api/alumnos/<codigo>/horario", methods=["POST"])
 def guardar_horario(codigo):
-    """
-    Body JSON:
-    {
-      "calendario": "2025-B",
-      "materias": [{"clave":"I5890","nombre":"ELECTRONICA DIGITAL","creditos":6}, ...]
-    }
-    """
     try:
         data = request.get_json(silent=True)
         if not data:
@@ -211,7 +190,6 @@ def guardar_horario(codigo):
         materias = data.get("materias", [])
         if not isinstance(materias, list):
             return jsonify({"ok": False, "error": "'materias' debe ser una lista"}), 400
-
         motor = MotorInferencia(db_path=DB_FILE)
         resultado = motor.guardar_horario(codigo, materias, calendario)
         return jsonify(resultado)
@@ -235,13 +213,9 @@ def obtener_horario(codigo):
     conn.close()
     return jsonify([dict(h) for h in horario])
 
-# ── Sugerencia de materia (3 filtros) ─────────────────────────
+# ── Sugerencia de materia ─────────────────────────────────────
 @app.route("/api/alumnos/<codigo>/sugerir", methods=["GET", "POST"])
 def sugerir_materia(codigo):
-    """
-    GET  ?q=nombre_o_clave&area=NombreArea
-    POST {"q":"nombre_o_clave","area":"NombreArea"}
-    """
     try:
         if request.method == "POST":
             data = request.get_json(silent=True) or {}
@@ -250,10 +224,8 @@ def sugerir_materia(codigo):
         else:
             query = request.args.get("q", "")
             area_manual = request.args.get("area", None)
-
         if not query:
             return jsonify({"error": "Parámetro 'q' requerido"}), 400
-
         motor = MotorInferencia(db_path=DB_FILE)
         resultado = motor.sugerir_materia(codigo, query, area_manual)
         return jsonify(clean(resultado))
@@ -269,16 +241,13 @@ def cargar_kardex():
     file = request.files["pdf"]
     if not file.filename.lower().endswith(".pdf"):
         return jsonify({"error": "Solo se aceptan archivos PDF"}), 400
-
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         file.save(tmp.name)
         tmp_path = tmp.name
-
     try:
         extractor = KardexExtractor(db_path=DB_FILE)
         with CaptureOutput() as buf:
             extractor.cargar_pdf(tmp_path)
-
         import sqlite3
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
@@ -300,9 +269,6 @@ def cargar_kardex():
 # ── Actualizar perfil del alumno ──────────────────────────────
 @app.route("/api/alumnos/<codigo>/perfil", methods=["POST"])
 def actualizar_perfil(codigo):
-    """
-    Body: {"orientacion":"OT","servicio_social":true,"practicas":false}
-    """
     try:
         import sqlite3
         data = request.get_json(silent=True) or {}
@@ -312,8 +278,7 @@ def actualizar_perfil(codigo):
             conn.close()
             return jsonify({"error": "Alumno no encontrado"}), 404
         alumno_id = alumno[0]
-        fields = []
-        vals = []
+        fields, vals = [], []
         if "orientacion" in data:
             fields.append("orientacion_elegida=?"); vals.append(data["orientacion"])
         if "servicio_social" in data:
