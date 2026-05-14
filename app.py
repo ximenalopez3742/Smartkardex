@@ -6,6 +6,10 @@ Flask backend que expone el sistema de Kárdex UDG como REST API.
 app.py — Smartkardex Web API v2
 Flask backend que expone el sistema de Kárdex UDG como REST API.
 """
+"""
+app.py — Smartkardex Web API v2
+Flask backend que expone el sistema de Kárdex UDG como REST API.
+"""
 
 import os
 import io
