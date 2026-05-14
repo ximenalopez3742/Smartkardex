@@ -758,8 +758,12 @@ async function uploadKardex(){
       state.codigo=d.alumno.codigo;
       toast(`Kárdex de ${d.alumno.nombre} cargado correctamente`,'green');
       await cargarDashboard();
-      // Si es primera vez → pedir perfil
-      if(!d.alumno.orientacion_elegida){
+      // Solo abrir perfil si nunca se ha configurado (ni orientación ni actividades)
+      const sinPerfil = !d.alumno.orientacion_elegida &&
+                        !d.alumno.servicio_social &&
+                        !d.alumno.practicas_profesionales;
+      if(sinPerfil && !state._perfilAbierto){
+        state._perfilAbierto = true;
         setTimeout(()=>openModal('modal-orientacion'),700);
       }
     } else {
@@ -774,16 +778,24 @@ async function cargarDashboard(){
   showLoader('Analizando datos...');
   try{
     const r=await fetch(`${API}/api/alumnos/${state.codigo}/analizar`);
+    if(!r.ok){
+      const txt=await r.text();
+      toast(`Error del servidor (${r.status}): ${txt.slice(0,120)}`,'red');
+      return;
+    }
     const d=await r.json();
-    if(d.error){toast(d.error,'red');return}
+    if(d.error){toast(`Error en análisis: ${d.error}`,'red');return}
+    if(!d.alumno){toast('Respuesta inesperada del servidor. Intenta reanalizar.','red');return}
     state.analisis=d;
     renderDashboard(d);
-    // Cargar horario guardado
     await cargarHorarioRemoto();
     document.getElementById('welcome').classList.add('hidden');
     document.getElementById('dashboard').classList.remove('hidden');
     document.getElementById('btn-perfil').style.display='';
-  }catch(e){toast('Error al cargar análisis','red')}
+  }catch(e){
+    console.error('cargarDashboard error:',e);
+    toast(`Error al cargar análisis: ${e.message}`,'red');
+  }
   finally{hideLoader()}
 }
 
@@ -802,7 +814,7 @@ function showWelcome(){
   document.getElementById('dashboard').classList.add('hidden');
   document.getElementById('welcome').classList.remove('hidden');
   document.getElementById('btn-perfil').style.display='none';
-  state.codigo=null;state.analisis=null;
+  state.codigo=null;state.analisis=null;state._perfilAbierto=false;
 }
 
 async function reanalizar(){
@@ -1248,10 +1260,13 @@ document.querySelectorAll('.modal-backdrop').forEach(b=>{
     const r=await fetch(`${API}/api/alumnos`);
     const d=await r.json();
     if(d&&d.length){
+      // Cargar el alumno más reciente (último en la lista)
       state.codigo=d[d.length-1].codigo;
+      // Marcar como ya procesado para no abrir modal de perfil automáticamente al recargar
+      state._perfilAbierto=true;
       await cargarDashboard();
     }
-  }catch(e){}
+  }catch(e){console.error('Init error:',e)}
 })();
 </script>
 </body>
