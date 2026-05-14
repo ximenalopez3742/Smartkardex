@@ -1,7 +1,6 @@
 """
-app.py — Smartkardex Web API
+app.py — Smartkardex Web API v2
 Flask backend que expone el sistema de Kárdex UDG como REST API.
-En producción (Render) también sirve el frontend estático.
 """
 
 import os
@@ -11,7 +10,6 @@ import json
 import tempfile
 import traceback
 from pathlib import Path
-
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
@@ -40,19 +38,23 @@ class CaptureOutput:
         sys.stdout = self._old
 
 
-# ── Servir frontend ──────────────────────────────────────────
+def clean(obj):
+    if isinstance(obj, set): return list(obj)
+    if isinstance(obj, dict): return {k: clean(v) for k, v in obj.items()}
+    if isinstance(obj, list): return [clean(i) for i in obj]
+    return obj
+
+
+# ── Frontend ──────────────────────────────────────────────────
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")
 
-
-# ── Health ───────────────────────────────────────────────────
 @app.route("/api/health")
 def health():
-    return jsonify({"status": "ok", "version": "1.0"})
+    return jsonify({"status": "ok", "version": "2.0"})
 
-
-# ── Plan de estudios ─────────────────────────────────────────
+# ── Plan de estudios ──────────────────────────────────────────
 @app.route("/api/plan/status")
 def plan_status():
     import sqlite3
@@ -60,7 +62,6 @@ def plan_status():
     count = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
     conn.close()
     return jsonify({"cargado": count > 0, "total_materias": count})
-
 
 @app.route("/api/plan/importar", methods=["POST"])
 def importar_plan():
@@ -71,8 +72,7 @@ def importar_plan():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
-
-# ── Alumnos ──────────────────────────────────────────────────
+# ── Alumnos ───────────────────────────────────────────────────
 @app.route("/api/alumnos")
 def listar_alumnos():
     import sqlite3
@@ -80,12 +80,12 @@ def listar_alumnos():
     conn.row_factory = sqlite3.Row
     rows = conn.execute("""
         SELECT codigo, nombre, carrera, creditos_adquiridos,
-               creditos_requeridos, promedio, ultimo_ciclo, situacion
+               creditos_requeridos, promedio, ultimo_ciclo, situacion,
+               orientacion_elegida, servicio_social, practicas_profesionales
         FROM alumnos ORDER BY nombre
     """).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
-
 
 @app.route("/api/alumnos/<codigo>")
 def consultar_alumno(codigo):
@@ -97,7 +97,7 @@ def consultar_alumno(codigo):
         conn.close()
         return jsonify({"error": f"Alumno {codigo} no encontrado"}), 404
     alumno_dict = dict(alumno)
-    alumno_id   = alumno_dict["id"]
+    alumno_id = alumno_dict["id"]
     materias = conn.execute("""
         SELECT clave, nombre, calificacion, estatus, creditos,
                tipo, calendario, fecha_eval
@@ -107,33 +107,121 @@ def consultar_alumno(codigo):
         SELECT area, requeridos, adquiridos, faltantes
         FROM creditos_por_area WHERE alumno_id=? ORDER BY area
     """, (alumno_id,)).fetchall()
+    horario = conn.execute("""
+        SELECT clave, nombre, creditos, calendario
+        FROM horario WHERE alumno_id=?
+    """, (alumno_id,)).fetchall()
     conn.close()
     return jsonify({
-        "alumno":        alumno_dict,
-        "materias":      [dict(m) for m in materias],
+        "alumno": alumno_dict,
+        "materias": [dict(m) for m in materias],
         "creditos_area": [dict(c) for c in creditos_area],
+        "horario": [dict(h) for h in horario],
     })
 
-
-@app.route("/api/alumnos/<codigo>/analizar")
+@app.route("/api/alumnos/<codigo>/analizar", methods=["GET", "POST"])
 def analizar_alumno(codigo):
     try:
         motor = MotorInferencia(db_path=DB_FILE)
+        # Parámetros opcionales desde query/body
+        orientacion = None
+        servicio_social = False
+        practicas = False
+
+        if request.method == "POST":
+            data = request.get_json(silent=True) or {}
+            orientacion = data.get("orientacion")
+            servicio_social = bool(data.get("servicio_social", False))
+            practicas = bool(data.get("practicas", False))
+        else:
+            orientacion = request.args.get("orientacion")
+            servicio_social = request.args.get("servicio_social", "").lower() == "true"
+            practicas = request.args.get("practicas", "").lower() == "true"
+
         with CaptureOutput():
-            resultado = motor.analizar(codigo)
+            resultado = motor.analizar(
+                codigo,
+                orientacion=orientacion,
+                servicio_social=servicio_social,
+                practicas=practicas,
+            )
+
         if resultado is None:
             return jsonify({"error": f"Alumno {codigo} no encontrado"}), 404
-        def clean(obj):
-            if isinstance(obj, set):  return list(obj)
-            if isinstance(obj, dict): return {k: clean(v) for k,v in obj.items()}
-            if isinstance(obj, list): return [clean(i) for i in obj]
-            return obj
         return jsonify(clean(resultado))
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+# ── Horario ───────────────────────────────────────────────────
+@app.route("/api/alumnos/<codigo>/horario", methods=["POST"])
+def guardar_horario(codigo):
+    """
+    Body JSON:
+    {
+      "calendario": "2025-B",
+      "materias": [{"clave":"I5890","nombre":"ELECTRONICA DIGITAL","creditos":6}, ...]
+    }
+    """
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"ok": False, "error": "Body JSON requerido"}), 400
+        calendario = data.get("calendario", "")
+        materias = data.get("materias", [])
+        if not isinstance(materias, list):
+            return jsonify({"ok": False, "error": "'materias' debe ser una lista"}), 400
 
+        motor = MotorInferencia(db_path=DB_FILE)
+        resultado = motor.guardar_horario(codigo, materias, calendario)
+        return jsonify(resultado)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/api/alumnos/<codigo>/horario", methods=["GET"])
+def obtener_horario(codigo):
+    import sqlite3
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    alumno = conn.execute("SELECT id FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
+    if not alumno:
+        conn.close()
+        return jsonify({"error": "Alumno no encontrado"}), 404
+    horario = conn.execute("""
+        SELECT clave, nombre, creditos, calendario FROM horario
+        WHERE alumno_id=? ORDER BY calendario, nombre
+    """, (alumno["id"],)).fetchall()
+    conn.close()
+    return jsonify([dict(h) for h in horario])
+
+# ── Sugerencia de materia (3 filtros) ─────────────────────────
+@app.route("/api/alumnos/<codigo>/sugerir", methods=["GET", "POST"])
+def sugerir_materia(codigo):
+    """
+    GET  ?q=nombre_o_clave&area=NombreArea
+    POST {"q":"nombre_o_clave","area":"NombreArea"}
+    """
+    try:
+        if request.method == "POST":
+            data = request.get_json(silent=True) or {}
+            query = data.get("q", "")
+            area_manual = data.get("area", None)
+        else:
+            query = request.args.get("q", "")
+            area_manual = request.args.get("area", None)
+
+        if not query:
+            return jsonify({"error": "Parámetro 'q' requerido"}), 400
+
+        motor = MotorInferencia(db_path=DB_FILE)
+        resultado = motor.sugerir_materia(codigo, query, area_manual)
+        return jsonify(clean(resultado))
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+# ── Cargar kárdex PDF ─────────────────────────────────────────
 @app.route("/api/kardex/cargar", methods=["POST"])
 def cargar_kardex():
     if "pdf" not in request.files:
@@ -141,19 +229,23 @@ def cargar_kardex():
     file = request.files["pdf"]
     if not file.filename.lower().endswith(".pdf"):
         return jsonify({"error": "Solo se aceptan archivos PDF"}), 400
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         file.save(tmp.name)
         tmp_path = tmp.name
+
     try:
         extractor = KardexExtractor(db_path=DB_FILE)
         with CaptureOutput() as buf:
             extractor.cargar_pdf(tmp_path)
+
         import sqlite3
         conn = sqlite3.connect(DB_FILE)
         conn.row_factory = sqlite3.Row
         alumno = conn.execute("""
             SELECT codigo, nombre, carrera, creditos_adquiridos,
-                   creditos_requeridos, promedio, ultimo_ciclo
+                   creditos_requeridos, promedio, ultimo_ciclo,
+                   orientacion_elegida, servicio_social, practicas_profesionales
             FROM alumnos ORDER BY fecha_carga DESC, id DESC LIMIT 1
         """).fetchone()
         conn.close()
@@ -165,6 +257,36 @@ def cargar_kardex():
     finally:
         os.unlink(tmp_path)
 
+# ── Actualizar perfil del alumno ──────────────────────────────
+@app.route("/api/alumnos/<codigo>/perfil", methods=["POST"])
+def actualizar_perfil(codigo):
+    """
+    Body: {"orientacion":"OT","servicio_social":true,"practicas":false}
+    """
+    try:
+        import sqlite3
+        data = request.get_json(silent=True) or {}
+        conn = sqlite3.connect(DB_FILE)
+        alumno = conn.execute("SELECT id FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
+        if not alumno:
+            conn.close()
+            return jsonify({"error": "Alumno no encontrado"}), 404
+        alumno_id = alumno[0]
+        fields = []
+        vals = []
+        if "orientacion" in data:
+            fields.append("orientacion_elegida=?"); vals.append(data["orientacion"])
+        if "servicio_social" in data:
+            fields.append("servicio_social=?"); vals.append(1 if data["servicio_social"] else 0)
+        if "practicas" in data:
+            fields.append("practicas_profesionales=?"); vals.append(1 if data["practicas"] else 0)
+        if fields:
+            conn.execute(f"UPDATE alumnos SET {', '.join(fields)} WHERE id=?", vals + [alumno_id])
+            conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 @app.route("/api/alumnos/<codigo>", methods=["DELETE"])
 def eliminar_alumno(codigo):
@@ -179,7 +301,6 @@ def eliminar_alumno(codigo):
         return jsonify({"error": "Alumno no encontrado"}), 404
     return jsonify({"ok": True})
 
-
 # ── Arranque ──────────────────────────────────────────────────
 if __name__ == "__main__":
     init_db(DB_FILE)
@@ -193,5 +314,5 @@ if __name__ == "__main__":
             importar_plan_estudios(db_path=DB_FILE, csv_path=CSV_FILE)
         print("✅ Plan importado.")
     port = int(os.environ.get("PORT", 5000))
-    print(f"🚀 Smartkardex corriendo en http://0.0.0.0:{port}")
+    print(f"🚀 Smartkardex v2 corriendo en http://0.0.0.0:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)
