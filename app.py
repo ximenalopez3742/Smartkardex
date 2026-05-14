@@ -11,6 +11,11 @@ app.py — Smartkardex Web API v2
 Flask backend que expone el sistema de Kárdex UDG como REST API.
 """
 
+"""
+app.py — Smartkardex Web API v2
+Flask backend que expone el sistema de Kárdex UDG como REST API.
+"""
+
 import os
 import io
 import sys
@@ -53,15 +58,30 @@ def clean(obj):
     return obj
 
 
-# ── Inicialización al arranque (funciona con gunicorn Y python directo) ──
+# ── Inicialización al arranque (gunicorn + python directo) ──────
 import sqlite3 as _sqlite3
-init_db(DB_FILE)
-_conn_init = _sqlite3.connect(DB_FILE)
-_plan_count = _conn_init.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
-_conn_init.close()
-if _plan_count == 0 and Path(CSV_FILE).exists():
-    with CaptureOutput():
-        importar_plan_estudios(db_path=DB_FILE, csv_path=CSV_FILE)
+import logging as _logging
+_log = _logging.getLogger(__name__)
+try:
+    init_db(DB_FILE)
+    _log.info("BD inicializada: %s", DB_FILE)
+    _conn_init = _sqlite3.connect(DB_FILE)
+    _plan_count = _conn_init.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
+    _conn_init.close()
+    if _plan_count == 0:
+        if Path(CSV_FILE).exists():
+            _log.info("Importando plan de estudios...")
+            with CaptureOutput():
+                importar_plan_estudios(db_path=DB_FILE, csv_path=CSV_FILE)
+            _log.info("Plan de estudios importado.")
+        else:
+            _log.warning("CSV no encontrado: %s", CSV_FILE)
+            _log.warning("Archivos en directorio: %s", list(Path(BASE_DIR).iterdir()))
+    else:
+        _log.info("Plan ya cargado (%d materias).", _plan_count)
+except Exception as _e:
+    _log.error("ERROR inicializando BD: %s", _e, exc_info=True)
+    # Flask arranca igual para que Render no marque el deploy como caido
 
 
 # ── Frontend ──────────────────────────────────────────────────
