@@ -2,6 +2,10 @@
 app.py — Smartkardex Web API v2
 Flask backend que expone el sistema de Kárdex UDG como REST API.
 """
+"""
+app.py — Smartkardex Web API v2
+Flask backend que expone el sistema de Kárdex UDG como REST API.
+"""
 
 import os
 import io
@@ -20,7 +24,7 @@ from extractor import KardexExtractor
 from motor import MotorInferencia
 from plan import importar_plan_estudios
 
-app = Flask(__name__, static_folder="static", static_url_path="")
+app = Flask(__name__, static_folder=".", static_url_path="")
 CORS(app)
 
 BASE_DIR = Path(__file__).parent
@@ -45,10 +49,21 @@ def clean(obj):
     return obj
 
 
+# ── Inicialización al arranque (funciona con gunicorn Y python directo) ──
+import sqlite3 as _sqlite3
+init_db(DB_FILE)
+_conn_init = _sqlite3.connect(DB_FILE)
+_plan_count = _conn_init.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
+_conn_init.close()
+if _plan_count == 0 and Path(CSV_FILE).exists():
+    with CaptureOutput():
+        importar_plan_estudios(db_path=DB_FILE, csv_path=CSV_FILE)
+
+
 # ── Frontend ──────────────────────────────────────────────────
 @app.route("/")
 def index():
-    return send_from_directory("static", "index.html")
+    return send_from_directory(".", "index.html")
 
 @app.route("/api/health")
 def health():
@@ -303,16 +318,6 @@ def eliminar_alumno(codigo):
 
 # ── Arranque ──────────────────────────────────────────────────
 if __name__ == "__main__":
-    init_db(DB_FILE)
-    import sqlite3
-    conn = sqlite3.connect(DB_FILE)
-    plan_count = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
-    conn.close()
-    if plan_count == 0 and Path(CSV_FILE).exists():
-        print("📚 Importando plan de estudios...")
-        with CaptureOutput():
-            importar_plan_estudios(db_path=DB_FILE, csv_path=CSV_FILE)
-        print("✅ Plan importado.")
     port = int(os.environ.get("PORT", 5000))
     print(f"🚀 Smartkardex v2 corriendo en http://0.0.0.0:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)
