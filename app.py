@@ -1,6 +1,5 @@
 """
 app.py — Smartkardex Web API v2
-Flask backend que expone el sistema de Kárdex UDG como REST API.
 """
 
 import os
@@ -13,24 +12,21 @@ from pathlib import Path
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from database import init_db
 from extractor import KardexExtractor
 from motor import MotorInferencia
 from plan import importar_plan_estudios
 
-BASE_DIR = Path(__file__).parent
+BASE_DIR   = Path(os.path.abspath(__file__)).parent
+STATIC_DIR = BASE_DIR / "static"
+DB_FILE    = str(BASE_DIR / "kardex_udg.db")
+CSV_FILE   = str(BASE_DIR / "Plan de Estudios IELC - Hoja 6.csv")
 
-# Detecta automáticamente si index.html está en static/ o en la raíz
-_static_candidates = [BASE_DIR / "static", BASE_DIR]
-_static_dir = next((d for d in _static_candidates if (d / "index.html").exists()), BASE_DIR)
-
-app = Flask(__name__, static_folder=str(_static_dir), static_url_path="/static")
+# Flask: static_folder apunta a /static, las rutas de API no se tocan
+app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/static")
 CORS(app)
-
-DB_FILE  = str(BASE_DIR / "kardex_udg.db")
-CSV_FILE = str(BASE_DIR / "Plan de Estudios IELC - Hoja 6.csv")
 
 
 class CaptureOutput:
@@ -50,41 +46,42 @@ def clean(obj):
     return obj
 
 
-# ── Inicialización al arranque (gunicorn + python directo) ──────
+# ── Inicialización al arranque ──────────────────────────────────
 import sqlite3 as _sqlite3
 import logging as _logging
 _log = _logging.getLogger(__name__)
 try:
     init_db(DB_FILE)
-    _log.info("BD inicializada: %s", DB_FILE)
     _conn_init = _sqlite3.connect(DB_FILE)
     _plan_count = _conn_init.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
     _conn_init.close()
-    if _plan_count == 0:
-        if Path(CSV_FILE).exists():
-            _log.info("Importando plan de estudios...")
-            with CaptureOutput():
-                importar_plan_estudios(db_path=DB_FILE, csv_path=CSV_FILE)
-            _log.info("Plan de estudios importado.")
-        else:
-            _log.warning("CSV no encontrado: %s", CSV_FILE)
-            _log.warning("Archivos en directorio: %s", list(Path(BASE_DIR).iterdir()))
+    if _plan_count == 0 and Path(CSV_FILE).exists():
+        _log.info("Importando plan de estudios...")
+        with CaptureOutput():
+            importar_plan_estudios(db_path=DB_FILE, csv_path=CSV_FILE)
+        _log.info("Plan de estudios importado.")
     else:
-        _log.info("Plan ya cargado (%d materias).", _plan_count)
+        _log.info("Plan cargado (%d materias). STATIC_DIR=%s exists=%s index=%s",
+                  _plan_count, STATIC_DIR,
+                  STATIC_DIR.exists(),
+                  (STATIC_DIR / "index.html").exists())
 except Exception as _e:
     _log.error("ERROR inicializando BD: %s", _e, exc_info=True)
 
 
-# ── Frontend ──────────────────────────────────────────────────
-@app.route("/")
-def index():
-    return send_from_directory(str(_static_dir), "index.html")
+# ══════════════════════════════════════════════
+# RUTAS DE API  (deben ir ANTES del catch-all)
+# ══════════════════════════════════════════════
 
 @app.route("/api/health")
 def health():
-    return jsonify({"status": "ok", "version": "2.0"})
+    return jsonify({
+        "status": "ok", "version": "2.0",
+        "static_dir": str(STATIC_DIR),
+        "static_exists": STATIC_DIR.exists(),
+        "index_exists": (STATIC_DIR / "index.html").exists(),
+    })
 
-# ── Plan de estudios ──────────────────────────────────────────
 @app.route("/api/plan/status")
 def plan_status():
     import sqlite3
@@ -102,7 +99,6 @@ def importar_plan():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
-# ── Alumnos ───────────────────────────────────────────────────
 @app.route("/api/alumnos")
 def listar_alumnos():
     import sqlite3
@@ -117,7 +113,7 @@ def listar_alumnos():
     conn.close()
     return jsonify([dict(r) for r in rows])
 
-@app.route("/api/alumnos/<codigo>")
+@app.route("/api/alumnos/<codigo>", methods=["GET"])
 def consultar_alumno(codigo):
     import sqlite3
     conn = sqlite3.connect(DB_FILE)
@@ -149,6 +145,19 @@ def consultar_alumno(codigo):
         "horario": [dict(h) for h in horario],
     })
 
+@app.route("/api/alumnos/<codigo>", methods=["DELETE"])
+def eliminar_alumno(codigo):
+    import sqlite3
+    conn = sqlite3.connect(DB_FILE)
+    conn.execute("PRAGMA foreign_keys = ON")
+    cur = conn.cursor()
+    cur.execute("DELETE FROM alumnos WHERE codigo=?", (codigo,))
+    deleted = cur.rowcount
+    conn.commit(); conn.close()
+    if deleted == 0:
+        return jsonify({"error": "Alumno no encontrado"}), 404
+    return jsonify({"ok": True})
+
 @app.route("/api/alumnos/<codigo>/analizar", methods=["GET", "POST"])
 def analizar_alumno(codigo):
     try:
@@ -167,10 +176,8 @@ def analizar_alumno(codigo):
             practicas = request.args.get("practicas", "").lower() == "true"
         with CaptureOutput():
             resultado = motor.analizar(
-                codigo,
-                orientacion=orientacion,
-                servicio_social=servicio_social,
-                practicas=practicas,
+                codigo, orientacion=orientacion,
+                servicio_social=servicio_social, practicas=practicas,
             )
         if resultado is None:
             return jsonify({"error": f"Alumno {codigo} no encontrado"}), 404
@@ -179,7 +186,6 @@ def analizar_alumno(codigo):
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-# ── Horario ───────────────────────────────────────────────────
 @app.route("/api/alumnos/<codigo>/horario", methods=["POST"])
 def guardar_horario(codigo):
     try:
@@ -213,7 +219,6 @@ def obtener_horario(codigo):
     conn.close()
     return jsonify([dict(h) for h in horario])
 
-# ── Sugerencia de materia ─────────────────────────────────────
 @app.route("/api/alumnos/<codigo>/sugerir", methods=["GET", "POST"])
 def sugerir_materia(codigo):
     try:
@@ -233,7 +238,32 @@ def sugerir_materia(codigo):
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-# ── Cargar kárdex PDF ─────────────────────────────────────────
+@app.route("/api/alumnos/<codigo>/perfil", methods=["POST"])
+def actualizar_perfil(codigo):
+    try:
+        import sqlite3
+        data = request.get_json(silent=True) or {}
+        conn = sqlite3.connect(DB_FILE)
+        alumno = conn.execute("SELECT id FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
+        if not alumno:
+            conn.close()
+            return jsonify({"error": "Alumno no encontrado"}), 404
+        alumno_id = alumno[0]
+        fields, vals = [], []
+        if "orientacion" in data:
+            fields.append("orientacion_elegida=?"); vals.append(data["orientacion"])
+        if "servicio_social" in data:
+            fields.append("servicio_social=?"); vals.append(1 if data["servicio_social"] else 0)
+        if "practicas" in data:
+            fields.append("practicas_profesionales=?"); vals.append(1 if data["practicas"] else 0)
+        if fields:
+            conn.execute(f"UPDATE alumnos SET {', '.join(fields)} WHERE id=?", vals + [alumno_id])
+            conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/api/kardex/cargar", methods=["POST"])
 def cargar_kardex():
     if "pdf" not in request.files:
@@ -266,45 +296,25 @@ def cargar_kardex():
     finally:
         os.unlink(tmp_path)
 
-# ── Actualizar perfil del alumno ──────────────────────────────
-@app.route("/api/alumnos/<codigo>/perfil", methods=["POST"])
-def actualizar_perfil(codigo):
-    try:
-        import sqlite3
-        data = request.get_json(silent=True) or {}
-        conn = sqlite3.connect(DB_FILE)
-        alumno = conn.execute("SELECT id FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
-        if not alumno:
-            conn.close()
-            return jsonify({"error": "Alumno no encontrado"}), 404
-        alumno_id = alumno[0]
-        fields, vals = [], []
-        if "orientacion" in data:
-            fields.append("orientacion_elegida=?"); vals.append(data["orientacion"])
-        if "servicio_social" in data:
-            fields.append("servicio_social=?"); vals.append(1 if data["servicio_social"] else 0)
-        if "practicas" in data:
-            fields.append("practicas_profesionales=?"); vals.append(1 if data["practicas"] else 0)
-        if fields:
-            conn.execute(f"UPDATE alumnos SET {', '.join(fields)} WHERE id=?", vals + [alumno_id])
-            conn.commit()
-        conn.close()
-        return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
 
-@app.route("/api/alumnos/<codigo>", methods=["DELETE"])
-def eliminar_alumno(codigo):
-    import sqlite3
-    conn = sqlite3.connect(DB_FILE)
-    conn.execute("PRAGMA foreign_keys = ON")
-    cur = conn.cursor()
-    cur.execute("DELETE FROM alumnos WHERE codigo=?", (codigo,))
-    deleted = cur.rowcount
-    conn.commit(); conn.close()
-    if deleted == 0:
-        return jsonify({"error": "Alumno no encontrado"}), 404
-    return jsonify({"ok": True})
+# ══════════════════════════════════════════════
+# FRONTEND — van AL FINAL para no interceptar /api/
+# ══════════════════════════════════════════════
+
+@app.route("/")
+def index():
+    return send_from_directory(str(STATIC_DIR), "index.html")
+
+@app.route("/<path:path>")
+def catch_all(path):
+    # No interceptar rutas de API (por si llegan aquí por algún orden)
+    if path.startswith("api/"):
+        return jsonify({"error": "Not found"}), 404
+    target = STATIC_DIR / path
+    if target.exists() and target.is_file():
+        return send_from_directory(str(STATIC_DIR), path)
+    return send_from_directory(str(STATIC_DIR), "index.html")
+
 
 # ── Arranque ──────────────────────────────────────────────────
 if __name__ == "__main__":
