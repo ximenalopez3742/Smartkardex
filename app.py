@@ -1,382 +1,332 @@
 """
-app.py — Smartkardex Web API v2
+app.py — Backend Flask para SmartKardex Web
+============================================
+Endpoints:
+  POST /api/cargar-kardex      → sube y extrae un PDF de kárdex
+  POST /api/importar-plan      → importa el CSV del plan de estudios
+  POST /api/analizar           → análisis académico (motor de inferencia)
+  POST /api/cargar-horario     → extrae claves del PDF de horario
+  GET  /api/alumno/<codigo>    → datos del alumno desde la BD
+  GET  /api/alumnos            → lista todos los alumnos
+  GET  /api/plan               → lista el plan de estudios cargado
+  GET  /health                 → healthcheck para Render
+
+Despliegue en Render:
+  - Runtime: Python 3.11
+  - Build command:  pip install -r requirements.txt
+  - Start command:  gunicorn app:app --timeout 120
+
+Variables de entorno (opcionales):
+  KARDEX_DB_PATH   → ruta a la BD SQLite (default: kardex_udg.db)
+  PLAN_CSV_PATH    → ruta al CSV del plan (default: Plan de Estudios IELC - Hoja 6.csv)
+  SECRET_KEY       → clave secreta Flask (genera una aleatoria si no se pone)
 """
-import os, io, sys, tempfile, traceback
+
+import os
+import tempfile
+import traceback
 from pathlib import Path
-from flask import Flask, request, jsonify, send_from_directory
+
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-sys.path.insert(0, os.path.dirname(__file__))
-from database import init_db
+from database import init_db, normalizar, log
 from extractor import KardexExtractor
-from motor import MotorInferencia
 from plan import importar_plan_estudios
+from motor_web import MotorInferencia
 
-app = Flask(__name__, static_folder="static", static_url_path="")
+# ─────────────────────────────────────────────────────────────────
+# Configuración
+# ─────────────────────────────────────────────────────────────────
+DB_PATH      = os.environ.get("KARDEX_DB_PATH", "kardex_udg.db")
+PLAN_CSV     = os.environ.get("PLAN_CSV_PATH", "Plan de Estudios IELC - Hoja 6.csv")
+SECRET_KEY   = os.environ.get("SECRET_KEY", os.urandom(24).hex())
+MAX_MB       = 20  # tamaño máximo de PDF en MB
+
+app = Flask(__name__)
+app.config["SECRET_KEY"]      = SECRET_KEY
+app.config["MAX_CONTENT_LENGTH"] = MAX_MB * 1024 * 1024
+
+# CORS abierto — en producción restringe a tu dominio:
+#   CORS(app, origins=["https://smartkardex.onrender.com"])
 CORS(app)
 
-BASE_DIR = Path(__file__).parent
-DB_FILE  = str(BASE_DIR / "kardex_udg.db")
-CSV_NAMES = [
-    "Plan de Estudios IELC - Hoja 6.csv",
-    "Plan_de_Estudios_IELC_-_Hoja_6.csv",
-]
+# Inicializar BD al arrancar
+init_db(DB_PATH)
+
+# Importar el plan automáticamente si existe el CSV y la tabla está vacía
+import sqlite3 as _sqlite3
+def _plan_vacio() -> bool:
+    try:
+        conn = _sqlite3.connect(DB_PATH)
+        n = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
+        conn.close()
+        return n == 0
+    except Exception:
+        return True
+
+if _plan_vacio() and Path(PLAN_CSV).exists():
+    log.info("Auto-importando plan de estudios desde %s", PLAN_CSV)
+    importar_plan_estudios(db_path=DB_PATH, csv_path=PLAN_CSV)
 
 
-class CaptureOutput:
-    def __enter__(self):
-        self._old = sys.stdout
-        self._buf = io.StringIO()
-        sys.stdout = self._buf
-        return self._buf
-    def __exit__(self, *a):
-        sys.stdout = self._old
+# ─────────────────────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────────────────────
+
+def _err(msg: str, code: int = 400):
+    return jsonify({"ok": False, "error": msg}), code
+
+def _ok(data: dict):
+    return jsonify({"ok": True, **data})
 
 
-def clean(obj):
-    if isinstance(obj, set): return list(obj)
-    if isinstance(obj, dict): return {k: clean(v) for k, v in obj.items()}
-    if isinstance(obj, list): return [clean(i) for i in obj]
-    return obj
+# ─────────────────────────────────────────────────────────────────
+# Healthcheck
+# ─────────────────────────────────────────────────────────────────
 
-
-def _ensure_plan():
-    """Importa el plan si la tabla está vacía. Se ejecuta al importar el módulo (gunicorn + python)."""
-    import sqlite3
-    init_db(DB_FILE)
-    conn = sqlite3.connect(DB_FILE)
-    count = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
-    conn.close()
-    if count == 0:
-        csv_path = next((str(BASE_DIR / n) for n in CSV_NAMES if (BASE_DIR / n).exists()), None)
-        if csv_path:
-            print(f"Importando plan desde {csv_path}...")
-            with CaptureOutput():
-                importar_plan_estudios(db_path=DB_FILE, csv_path=csv_path)
-            print("Plan importado OK.")
-        else:
-            print(f"AVISO: CSV del plan no encontrado en {BASE_DIR}")
-
-# Se ejecuta SIEMPRE al importar (funciona con gunicorn, no solo con __main__)
-_ensure_plan()
-
-
-# ── Frontend ──────────────────────────────────────────────
-@app.route("/")
-def index():
-    return send_from_directory("static", "index.html")
-
-@app.route("/api/health")
+@app.get("/health")
 def health():
-    import sqlite3
-    conn = sqlite3.connect(DB_FILE)
-    plan = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
-    alumnos = conn.execute("SELECT COUNT(*) FROM alumnos").fetchone()[0]
-    conn.close()
-    return jsonify({"status": "ok", "version": "2.0", "plan_materias": plan, "alumnos": alumnos})
-
-# ── Plan ──────────────────────────────────────────────────
-@app.route("/api/plan/status")
-def plan_status():
-    import sqlite3
-    conn = sqlite3.connect(DB_FILE)
-    count = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
-    conn.close()
-    return jsonify({"cargado": count > 0, "total_materias": count})
-
-@app.route("/api/plan/importar", methods=["POST"])
-def importar_plan():
-    try:
-        csv_path = next((str(BASE_DIR / n) for n in CSV_NAMES if (BASE_DIR / n).exists()), None)
-        if not csv_path:
-            return jsonify({"ok": False, "error": f"CSV no encontrado en {BASE_DIR}"}), 404
-        with CaptureOutput() as buf:
-            importar_plan_estudios(db_path=DB_FILE, csv_path=csv_path)
-        return jsonify({"ok": True, "mensaje": buf.getvalue()})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-# ── Alumnos ───────────────────────────────────────────────
-@app.route("/api/alumnos")
-def listar_alumnos():
-    import sqlite3
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute("""
-        SELECT codigo, nombre, carrera, creditos_adquiridos,
-               creditos_requeridos, promedio, ultimo_ciclo, situacion,
-               orientacion_elegida, servicio_social, practicas_profesionales
-        FROM alumnos ORDER BY nombre
-    """).fetchall()
-    conn.close()
-    return jsonify([dict(r) for r in rows])
-
-@app.route("/api/alumnos/<codigo>")
-def consultar_alumno(codigo):
-    import sqlite3
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    alumno = conn.execute("SELECT * FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
-    if not alumno:
-        conn.close()
-        return jsonify({"error": f"Alumno {codigo} no encontrado"}), 404
-    alumno_dict = dict(alumno)
-    alumno_id = alumno_dict["id"]
-    materias = conn.execute("""
-        SELECT clave, nombre, calificacion, estatus, creditos,
-               tipo, calendario, fecha_eval
-        FROM materias WHERE alumno_id=? ORDER BY calendario, nombre
-    """, (alumno_id,)).fetchall()
-    conn.close()
-    return jsonify({"alumno": alumno_dict, "materias": [dict(m) for m in materias]})
-
-@app.route("/api/alumnos/<codigo>/analizar", methods=["GET", "POST"])
-def analizar_alumno(codigo):
-    try:
-        import sqlite3
-        conn = sqlite3.connect(DB_FILE)
-        plan_count = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
-        conn.close()
-        if plan_count == 0:
-            _ensure_plan()
-
-        orientacion = None
-        servicio_social = False
-        practicas = False
-        if request.method == "POST":
-            data = request.get_json(silent=True) or {}
-            orientacion     = data.get("orientacion")
-            servicio_social = bool(data.get("servicio_social", False))
-            practicas       = bool(data.get("practicas", False))
-        else:
-            orientacion     = request.args.get("orientacion")
-            servicio_social = request.args.get("servicio_social", "").lower() == "true"
-            practicas       = request.args.get("practicas", "").lower() == "true"
-
-        motor = MotorInferencia(db_path=DB_FILE)
-        with CaptureOutput():
-            resultado = motor.analizar(codigo,
-                orientacion=orientacion,
-                servicio_social=servicio_social,
-                practicas=practicas)
-
-        if resultado is None:
-            return jsonify({"error": f"Alumno {codigo} no encontrado o plan vacío"}), 404
-        return jsonify(clean(resultado))
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
-# ── Horario JSON ──────────────────────────────────────────
-@app.route("/api/alumnos/<codigo>/horario", methods=["GET"])
-def obtener_horario(codigo):
-    import sqlite3
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    alumno = conn.execute("SELECT id FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
-    if not alumno:
-        conn.close()
-        return jsonify({"error": "Alumno no encontrado"}), 404
-    horario = conn.execute("""
-        SELECT clave, nombre, creditos, calendario FROM horario
-        WHERE alumno_id=? ORDER BY nombre
-    """, (alumno["id"],)).fetchall()
-    conn.close()
-    return jsonify([dict(h) for h in horario])
-
-@app.route("/api/alumnos/<codigo>/horario", methods=["POST"])
-def guardar_horario(codigo):
-    try:
-        data = request.get_json(silent=True)
-        if not data:
-            return jsonify({"ok": False, "error": "Body JSON requerido"}), 400
-        calendario = data.get("calendario", "")
-        materias   = data.get("materias", [])
-        motor = MotorInferencia(db_path=DB_FILE)
-        resultado = motor.guardar_horario(codigo, materias, calendario)
-        return jsonify(resultado)
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-# ── Horario PDF ───────────────────────────────────────────
-@app.route("/api/alumnos/<codigo>/horario-pdf", methods=["POST"])
-def cargar_horario_pdf(codigo):
-    """Extrae materias de un PDF de horario de Leo UDG y las guarda."""
-    if "pdf" not in request.files:
-        return jsonify({"ok": False, "error": "No se envió archivo PDF"}), 400
-    file = request.files["pdf"]
-    if not file.filename.lower().endswith(".pdf"):
-        return jsonify({"ok": False, "error": "Solo se aceptan archivos PDF"}), 400
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        file.save(tmp.name)
-        tmp_path = tmp.name
-    try:
-        materias, calendario = _extraer_horario_pdf(tmp_path)
-        if not materias:
-            return jsonify({"ok": False, "error": "No se encontraron materias en el PDF"}), 400
-        motor = MotorInferencia(db_path=DB_FILE)
-        resultado = motor.guardar_horario(codigo, materias, calendario)
-        return jsonify({**resultado, "materias": materias, "calendario": calendario})
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"ok": False, "error": str(e)}), 500
-    finally:
-        os.unlink(tmp_path)
+    return jsonify({"status": "ok"})
 
 
-def _extraer_horario_pdf(pdf_path: str):
-    """Extrae materias de un PDF de horario Leo UDG."""
-    import re
-    import pdfplumber
+# ─────────────────────────────────────────────────────────────────
+# POST /api/cargar-kardex
+# ─────────────────────────────────────────────────────────────────
 
-    materias = []
-    calendario = ""
-    clave_re = re.compile(r'\b([A-Z]{1,3}\d{3,5})\b')
-
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text() or ""
-
-            if not calendario:
-                m = re.search(r'(\d{4}[-]\s*[AB])', text, re.IGNORECASE)
-                if m:
-                    calendario = re.sub(r'\s+', '', m.group(1)).upper()
-
-            # Intentar extraer de tablas
-            for tabla in (page.extract_tables() or []):
-                for fila in tabla:
-                    celdas = [str(c or "").strip() for c in fila]
-                    clave = None
-                    for celda in celdas:
-                        m = clave_re.match(celda)
-                        if m:
-                            clave = m.group(1)
-                            break
-                    if not clave:
-                        continue
-                    nombre = max(
-                        (c for c in celdas if c != clave and not c.isdigit() and len(c) > 3),
-                        key=len, default=""
-                    )
-                    creditos = next(
-                        (int(c) for c in celdas if c.isdigit() and 1 <= int(c) <= 12), 0
-                    )
-                    if nombre and not any(x["clave"] == clave for x in materias):
-                        materias.append({"clave": clave, "nombre": nombre.upper(), "creditos": creditos})
-
-            # Fallback: extraer del texto línea por línea
-            if not materias:
-                for linea in text.split("\n"):
-                    m = clave_re.search(linea.strip())
-                    if not m:
-                        continue
-                    clave = m.group(1)
-                    resto = linea[m.end():].strip()
-                    nombre_part = re.sub(r'\b\d+\b', '', resto).strip(" -|:")
-                    if len(nombre_part) > 3 and not any(x["clave"] == clave for x in materias):
-                        creditos_m = re.search(r'\b(\d{1,2})\b', resto)
-                        creditos = int(creditos_m.group(1)) if creditos_m else 0
-                        materias.append({"clave": clave, "nombre": nombre_part.upper(), "creditos": creditos})
-
-    return materias, calendario or "2025-B"
-
-
-# ── Perfil alumno ─────────────────────────────────────────
-@app.route("/api/alumnos/<codigo>/perfil", methods=["POST"])
-def actualizar_perfil(codigo):
-    try:
-        import sqlite3
-        data = request.get_json(silent=True) or {}
-        conn = sqlite3.connect(DB_FILE)
-        alumno = conn.execute("SELECT id FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
-        if not alumno:
-            conn.close()
-            return jsonify({"error": "Alumno no encontrado"}), 404
-        alumno_id = alumno[0]
-        fields, vals = [], []
-        if "orientacion" in data:
-            fields.append("orientacion_elegida=?"); vals.append(data["orientacion"])
-        if "servicio_social" in data:
-            fields.append("servicio_social=?"); vals.append(1 if data["servicio_social"] else 0)
-        if "practicas" in data:
-            fields.append("practicas_profesionales=?"); vals.append(1 if data["practicas"] else 0)
-        if fields:
-            conn.execute(f"UPDATE alumnos SET {', '.join(fields)} WHERE id=?", vals + [alumno_id])
-            conn.commit()
-        conn.close()
-        return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-# ── Sugerir materia ───────────────────────────────────────
-@app.route("/api/alumnos/<codigo>/sugerir", methods=["GET", "POST"])
-def sugerir_materia(codigo):
-    try:
-        if request.method == "POST":
-            data = request.get_json(silent=True) or {}
-            query = data.get("q", "")
-            area_manual = data.get("area", None)
-        else:
-            query = request.args.get("q", "")
-            area_manual = request.args.get("area", None)
-        if not query:
-            return jsonify({"error": "Parámetro 'q' requerido"}), 400
-        motor = MotorInferencia(db_path=DB_FILE)
-        return jsonify(clean(motor.sugerir_materia(codigo, query, area_manual)))
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
-# ── Cargar kárdex PDF ─────────────────────────────────────
-@app.route("/api/kardex/cargar", methods=["POST"])
+@app.post("/api/cargar-kardex")
 def cargar_kardex():
-    if "pdf" not in request.files:
-        return jsonify({"error": "No se envió ningún archivo PDF"}), 400
-    file = request.files["pdf"]
-    if not file.filename.lower().endswith(".pdf"):
-        return jsonify({"error": "Solo se aceptan archivos PDF"}), 400
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        file.save(tmp.name)
+    """
+    Recibe un PDF de kárdex (multipart/form-data, campo 'file').
+    Extrae los datos y los guarda en la BD.
+    Retorna el resumen del alumno.
+    """
+    if "file" not in request.files:
+        return _err("Se requiere el campo 'file' con el PDF del kárdex.")
+    
+    archivo = request.files["file"]
+    if not archivo.filename.lower().endswith(".pdf"):
+        return _err("Solo se aceptan archivos PDF.")
+
+    # Guardar en archivo temporal
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp_path = tmp.name
+        archivo.save(tmp_path)
+
     try:
-        extractor = KardexExtractor(db_path=DB_FILE)
-        with CaptureOutput() as buf:
-            extractor.cargar_pdf(tmp_path)
-        import sqlite3
-        conn = sqlite3.connect(DB_FILE)
-        conn.row_factory = sqlite3.Row
-        alumno = conn.execute("""
-            SELECT codigo, nombre, carrera, creditos_adquiridos,
-                   creditos_requeridos, promedio, ultimo_ciclo,
-                   orientacion_elegida, servicio_social, practicas_profesionales
-            FROM alumnos ORDER BY fecha_carga DESC, id DESC LIMIT 1
-        """).fetchone()
-        conn.close()
-        return jsonify({"ok": True, "log": buf.getvalue(),
-                        "alumno": dict(alumno) if alumno else None})
+        extractor = KardexExtractor(db_path=DB_PATH)
+        resultado = extractor.cargar_pdf(tmp_path)
+        if not resultado:
+            return _err("No se pudo extraer información del PDF. "
+                        "Verifica que sea un kárdex UDG válido.")
+        return _ok({"resumen": resultado})
     except Exception as e:
-        traceback.print_exc()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        log.exception("Error al cargar kárdex")
+        return _err(f"Error interno: {str(e)}", 500)
     finally:
         os.unlink(tmp_path)
 
-# ── Eliminar alumno ───────────────────────────────────────
-@app.route("/api/alumnos/<codigo>", methods=["DELETE"])
-def eliminar_alumno(codigo):
-    import sqlite3
-    conn = sqlite3.connect(DB_FILE)
-    conn.execute("PRAGMA foreign_keys = ON")
-    cur = conn.cursor()
-    cur.execute("DELETE FROM alumnos WHERE codigo=?", (codigo,))
-    deleted = cur.rowcount
-    conn.commit(); conn.close()
-    if deleted == 0:
-        return jsonify({"error": "Alumno no encontrado"}), 404
-    return jsonify({"ok": True})
 
+# ─────────────────────────────────────────────────────────────────
+# POST /api/cargar-horario
+# ─────────────────────────────────────────────────────────────────
+
+@app.post("/api/cargar-horario")
+def cargar_horario():
+    """
+    Recibe un PDF de horario Leo UDG (campo 'file').
+    Retorna las materias inscritas en el ciclo actual.
+    """
+    if "file" not in request.files:
+        return _err("Se requiere el campo 'file' con el PDF del horario.")
+
+    archivo = request.files["file"]
+    if not archivo.filename.lower().endswith(".pdf"):
+        return _err("Solo se aceptan archivos PDF.")
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp_path = tmp.name
+        archivo.save(tmp_path)
+
+    try:
+        from horario_extractor import extraer_horario
+        datos = extraer_horario(tmp_path)
+        if not datos:
+            return _err("No se pudieron extraer materias del horario. "
+                        "Verifica que sea un horario Leo UDG válido.")
+        return _ok({"horario": datos})
+    except Exception as e:
+        log.exception("Error al cargar horario")
+        return _err(f"Error interno: {str(e)}", 500)
+    finally:
+        os.unlink(tmp_path)
+
+
+# ─────────────────────────────────────────────────────────────────
+# POST /api/analizar
+# ─────────────────────────────────────────────────────────────────
+
+@app.post("/api/analizar")
+def analizar():
+    """
+    Analiza el avance académico de un alumno.
+
+    JSON body:
+    {
+      "codigo":            "222937383",
+      "servicio_social":   false,        // ¿ya acreditó el SS?
+      "practicas_prof":    false,        // ¿ya acreditó las PP?
+      "orientacion":       "OT",         // orientación elegida (opcional)
+      "horario_claves":    ["IE123", "IE456"],  // claves del horario actual
+      "horario_nombres":   []            // nombres normalizados (opcional)
+    }
+    """
+    data = request.get_json(silent=True) or {}
+    codigo = (data.get("codigo") or "").strip()
+    if not codigo:
+        return _err("Se requiere el campo 'codigo' del alumno.")
+
+    horario_claves  = set(str(c).upper() for c in data.get("horario_claves", []))
+    horario_nombres = set(normalizar(str(n)) for n in data.get("horario_nombres", []))
+
+    try:
+        motor    = MotorInferencia(db_path=DB_PATH)
+        resultado = motor.analizar(
+            codigo_alumno   = codigo,
+            horario_claves  = horario_claves,
+            horario_nombres = horario_nombres,
+            servicio_social = bool(data.get("servicio_social", False)),
+            practicas_prof  = bool(data.get("practicas_prof",  False)),
+            orientacion     = (data.get("orientacion") or "").strip().upper(),
+        )
+        if resultado is None or "error" in resultado:
+            return _err(resultado.get("error", "Error desconocido."))
+        return _ok({"analisis": resultado})
+    except Exception as e:
+        log.exception("Error en análisis")
+        return _err(f"Error interno: {str(e)}", 500)
+
+
+# ─────────────────────────────────────────────────────────────────
+# POST /api/importar-plan
+# ─────────────────────────────────────────────────────────────────
+
+@app.post("/api/importar-plan")
+def importar_plan():
+    """
+    Importa el plan de estudios desde el CSV.
+    Acepta CSV como archivo (campo 'file') o usa el CSV en disco.
+    """
+    tmp_path = None
+    try:
+        if "file" in request.files:
+            archivo = request.files["file"]
+            with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
+                tmp_path = tmp.name
+                archivo.save(tmp_path)
+            csv_to_use = tmp_path
+        elif Path(PLAN_CSV).exists():
+            csv_to_use = PLAN_CSV
+        else:
+            return _err(f"No se encontró el CSV del plan. "
+                        f"Sube el archivo o colócalo como '{PLAN_CSV}'.")
+
+        importar_plan_estudios(db_path=DB_PATH, csv_path=csv_to_use)
+        
+        conn = _sqlite3.connect(DB_PATH)
+        total = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
+        conn.close()
+        return _ok({"mensaje": f"Plan importado correctamente. {total} materias en BD."})
+    except Exception as e:
+        log.exception("Error al importar plan")
+        return _err(f"Error interno: {str(e)}", 500)
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
+
+# ─────────────────────────────────────────────────────────────────
+# GET /api/alumno/<codigo>
+# ─────────────────────────────────────────────────────────────────
+
+@app.get("/api/alumno/<codigo>")
+def get_alumno(codigo: str):
+    """Retorna los datos completos del alumno (incluyendo materias y áreas)."""
+    try:
+        extractor = KardexExtractor(db_path=DB_PATH)
+        conn = extractor.conn
+        fila = conn.execute(
+            "SELECT id FROM alumnos WHERE codigo=?", (codigo,)
+        ).fetchone()
+        if not fila:
+            return _err(f"Alumno {codigo} no encontrado.", 404)
+        res = extractor._resumen(fila["id"])
+        return _ok({"alumno_data": res})
+    except Exception as e:
+        log.exception("Error al consultar alumno")
+        return _err(f"Error interno: {str(e)}", 500)
+
+
+# ─────────────────────────────────────────────────────────────────
+# GET /api/alumnos
+# ─────────────────────────────────────────────────────────────────
+
+@app.get("/api/alumnos")
+def listar_alumnos():
+    """Lista todos los alumnos registrados en la BD."""
+    try:
+        conn = init_db(DB_PATH)
+        rows = conn.execute("""
+            SELECT codigo, nombre, carrera, ultimo_ciclo,
+                   creditos_adquiridos, creditos_requeridos, promedio
+            FROM alumnos ORDER BY nombre
+        """).fetchall()
+        alumnos = [dict(r) for r in rows]
+        return _ok({"alumnos": alumnos, "total": len(alumnos)})
+    except Exception as e:
+        return _err(f"Error: {str(e)}", 500)
+
+
+# ─────────────────────────────────────────────────────────────────
+# GET /api/plan
+# ─────────────────────────────────────────────────────────────────
+
+@app.get("/api/plan")
+def get_plan():
+    """Retorna el plan de estudios cargado en la BD."""
+    try:
+        conn = init_db(DB_PATH)
+        rows = conn.execute("""
+            SELECT clave, materia, area_cod, area, orientacion_cod, orientacion,
+                   tipo, creditos, prerrequisito
+            FROM plan_estudios ORDER BY area_cod, materia
+        """).fetchall()
+        return _ok({"plan": [dict(r) for r in rows], "total": len(rows)})
+    except Exception as e:
+        return _err(f"Error: {str(e)}", 500)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Manejo de errores globales
+# ─────────────────────────────────────────────────────────────────
+
+@app.errorhandler(413)
+def too_large(e):
+    return _err(f"El archivo excede el tamaño máximo de {MAX_MB} MB.", 413)
+
+@app.errorhandler(404)
+def not_found(e):
+    return _err("Endpoint no encontrado.", 404)
+
+@app.errorhandler(500)
+def server_error(e):
+    return _err("Error interno del servidor.", 500)
+
+
+# ─────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    print(f"Smartkardex v2 en http://0.0.0.0:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)
