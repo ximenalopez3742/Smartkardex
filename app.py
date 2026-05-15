@@ -15,7 +15,7 @@ from flask_cors import CORS
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from database import init_db
-from extractor import KardexExtractor
+from extractor import KardexExtractor, HorarioExtractor
 from motor import MotorInferencia
 from plan import importar_plan_estudios
 
@@ -263,6 +263,43 @@ def actualizar_perfil(codigo):
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/api/horario/cargar", methods=["POST"])
+def cargar_horario_pdf():
+    """
+    Sube un PDF de horario.
+    Form-data:
+      - pdf       : archivo PDF del horario
+      - codigo    : (opcional) código del alumno si el PDF no lo trae
+      - calendario: (opcional) ej. "2025-B" si el PDF no lo trae
+    """
+    if "pdf" not in request.files:
+        return jsonify({"ok": False, "error": "No se envió ningún archivo PDF"}), 400
+    file = request.files["pdf"]
+    if not file.filename.lower().endswith(".pdf"):
+        return jsonify({"ok": False, "error": "Solo se aceptan archivos PDF"}), 400
+
+    codigo_override     = request.form.get("codigo", "").strip() or None
+    calendario_override = request.form.get("calendario", "").strip() or None
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        file.save(tmp.name)
+        tmp_path = tmp.name
+
+    try:
+        extractor = HorarioExtractor(db_path=DB_FILE)
+        resultado = extractor.cargar_pdf(
+            tmp_path,
+            codigo_override=codigo_override,
+            calendario_override=calendario_override,
+        )
+        return jsonify(resultado), 200 if resultado.get("ok") else 422
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        os.unlink(tmp_path)
+
 
 @app.route("/api/kardex/cargar", methods=["POST"])
 def cargar_kardex():
