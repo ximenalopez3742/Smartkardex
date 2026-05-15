@@ -200,7 +200,7 @@ def guardar_horario(codigo):
         return jsonify({"ok": False, "error": str(e)}), 500
 
 # ── Horario PDF ───────────────────────────────────────────
-@app.route("/api/alumnos/<codigo>/horario/pdf", methods=["POST"])
+@app.route("/api/alumnos/<codigo>/horario-pdf", methods=["POST"])
 def cargar_horario_pdf(codigo):
     """Extrae materias de un PDF de horario de Leo UDG y las guarda."""
     if "pdf" not in request.files:
