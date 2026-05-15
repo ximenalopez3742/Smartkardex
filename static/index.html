@@ -800,10 +800,12 @@ async function finalizarCarga(){
     const ori=state.orientacionSeleccionada;
     const ss=document.getElementById('chk-servicio').checked;
     const pr=document.getElementById('chk-practicas').checked;
-    await fetch(`${API}/api/alumnos/${state.codigo}/perfil`,{
+    const rp=await fetch(`${API}/api/alumnos/${state.codigo}/perfil`,{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({orientacion:ori,servicio_social:ss,practicas:pr})
     });
+    const dp=await rp.json();
+    if(dp.error==='SESSION_EXPIRED'){handleSessionExpired();return}
 
     // 2. Guardar horario si hay materias
     const cal=document.getElementById('horario-calendario').value.trim()||'SIN-CALENDARIO';
@@ -825,6 +827,23 @@ async function finalizarCarga(){
   }
 }
 
+/* ══════════════════════ SESSION ══════════════════════ */
+function handleSessionExpired(){
+  state.codigo=null;state.analisis=null;state.horario=[];
+  document.getElementById('dashboard').classList.add('hidden');
+  document.getElementById('welcome').classList.remove('hidden');
+  document.getElementById('btn-reanalizar').classList.add('hidden');
+  goStep(1);
+  // Mostrar banner de sesión expirada
+  const banner=document.createElement('div');
+  banner.className='alert alert-yellow';
+  banner.style='margin-bottom:16px';
+  banner.innerHTML='<span class="alert-icon">⚠️</span><div><strong>Sesión expirada</strong>El servidor se reinició y los datos se perdieron. Por favor vuelve a subir tu kárdex PDF.</div>';
+  const welcome=document.getElementById('welcome');
+  welcome.insertBefore(banner,welcome.firstChild);
+  setTimeout(()=>banner.remove(),8000);
+}
+
 /* ══════════════════════ DASHBOARD ══════════════════════ */
 async function cargarDashboard(calActual){
   if(!state.codigo)return;
@@ -832,10 +851,10 @@ async function cargarDashboard(calActual){
   try{
     const r=await fetch(`${API}/api/alumnos/${state.codigo}/analizar`);
     const d=await r.json();
+    if(d.error==='SESSION_EXPIRED'){handleSessionExpired();return}
     if(d.error){toast(d.error,'red');return}
     state.analisis=d;
     renderDashboard(d,calActual);
-    // Sincronizar horario en dashboard
     if(calActual){
       document.getElementById('horario-calendario-dash').value=calActual;
       document.getElementById('horario-cal-label').textContent=calActual;
@@ -855,6 +874,7 @@ async function reanalizar(){
   try{
     const r=await fetch(`${API}/api/alumnos/${state.codigo}/analizar`);
     const d=await r.json();
+    if(d.error==='SESSION_EXPIRED'){handleSessionExpired();return}
     if(d.error){toast(d.error,'red');return}
     state.analisis=d;
     renderDashboard(d);
