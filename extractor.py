@@ -657,3 +657,310 @@ class KardexExtractor:
             print("\n✅ Sin alertas académicas.")
 
         print(f"\n{sep}\n")
+
+
+# ══════════════════════════════════════════════════════════════════
+# EXTRACCIÓN DE HORARIO PDF
+# ══════════════════════════════════════════════════════════════════
+
+def _parse_calendario_horario(texto: str) -> str:
+    """Detecta el calendario del horario en el texto del PDF (ej. 2025B, 2025-B, CICLO 2025A)."""
+    patrones = [
+        r"(?:CICLO|CALENDARIO|PERIOD[O]?)[:\s]+(\d{4}[-\s]?[AB])",
+        r"\b(\d{4}[-–][AB])\b",
+        r"\b(\d{4}[AB])\b",
+    ]
+    for pat in patrones:
+        m = re.search(pat, texto, re.IGNORECASE)
+        if m:
+            cal = m.group(1).upper().replace("–", "-").replace(" ", "")
+            # Normalizar 2025A → 2025-A
+            if re.match(r"^\d{4}[AB]$", cal):
+                cal = cal[:-1] + "-" + cal[-1]
+            return cal
+    return ""
+
+
+def _parse_codigo_horario(texto: str) -> str:
+    """Extrae el código del alumno del encabezado del horario."""
+    patrones = [
+        r"C[oó]digo[:\s]+(\d{6,12})",
+        r"Expediente[:\s]+(\d{6,12})",
+        r"\b(\d{9})\b",   # 9 dígitos típico UDG
+        r"\b(\d{8})\b",
+        r"\b(\d{7})\b",
+    ]
+    for pat in patrones:
+        m = re.search(pat, texto, re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+    return ""
+
+
+def _es_fila_materia_horario(fila: list) -> bool:
+    """
+    Detecta si una fila de tabla contiene una materia de horario.
+    Buscamos que haya una clave tipo I5890, CC100, etc. en alguna celda.
+    """
+    for celda in fila:
+        val = _limpiar(str(celda) if celda else "")
+        if re.match(r"^[A-Z]{1,3}\d{3,5}$", val.replace(" ", ""), re.IGNORECASE):
+            return True
+    return False
+
+
+def _parse_fila_horario(fila: list) -> dict | None:
+    """
+    Intenta extraer clave, nombre y créditos de una fila del horario.
+    Maneja distintas disposiciones de columnas del PDF de horario UDG.
+    """
+    if not fila:
+        return None
+
+    celdas = [_limpiar(str(c) if c else "") for c in fila]
+
+    clave   = ""
+    nombre  = ""
+    creditos = 0
+    nrc     = ""
+
+    # Buscar clave (patrón alfanumérico tipo clave UDG)
+    for i, c in enumerate(celdas):
+        if re.match(r"^[A-Z]{1,3}\d{3,5}$", c.replace(" ", ""), re.IGNORECASE):
+            clave = c.upper().replace(" ", "")
+            # El nombre suele estar en la celda siguiente
+            if i + 1 < len(celdas) and celdas[i + 1] and len(celdas[i + 1]) > 3:
+                nombre = celdas[i + 1]
+            elif i > 0 and celdas[i - 1] and len(celdas[i - 1]) > 3 and not celdas[i - 1].isdigit():
+                nombre = celdas[i - 1]
+            break
+
+    if not clave:
+        return None
+
+    # Buscar NRC (número de 5 dígitos)
+    for c in celdas:
+        if re.match(r"^\d{5}$", c):
+            nrc = c
+            break
+
+    # Buscar créditos (número pequeño 1-12, evitar NRC)
+    for c in celdas:
+        if c == nrc:
+            continue
+        if re.match(r"^\d{1,2}$", c):
+            try:
+                val = int(c)
+                if 1 <= val <= 12:
+                    creditos = val
+                    break
+            except ValueError:
+                pass
+
+    # Si nombre vacío, buscar celda larga con texto
+    if not nombre:
+        for c in celdas:
+            if c and c != clave and c != nrc and len(c) > 5 and not c.isdigit():
+                nombre = c
+                break
+
+    if not clave or not nombre:
+        return None
+
+    return {
+        "nrc": nrc,
+        "clave": clave,
+        "nombre": nombre.upper(),
+        "creditos": creditos,
+    }
+
+
+def extraer_horario_pdf(pdf_path: str) -> dict:
+    """
+    Lee un PDF de horario UDG y retorna:
+      {
+        "codigo": "...",
+        "calendario": "2025-B",
+        "materias": [{"nrc":"...", "clave":"...", "nombre":"...", "creditos": 6}, ...]
+      }
+    Estrategias (en orden):
+      1. Tablas con pdfplumber (más preciso)
+      2. Texto libre con regex (fallback)
+    """
+    log.info("Extrayendo horario: %s", pdf_path)
+    full_text = ""
+    materias_raw = []
+
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            page_text = page.extract_text() or ""
+            full_text += page_text + "\n"
+
+            for tabla in page.extract_tables():
+                if not tabla or len(tabla) < 2:
+                    continue
+                # Detectar si es tabla de materias del horario
+                tiene_materias = any(_es_fila_materia_horario(f) for f in tabla)
+                if not tiene_materias:
+                    continue
+                for fila in tabla:
+                    m = _parse_fila_horario(fila)
+                    if m:
+                        materias_raw.append(m)
+
+    # Fallback: buscar por regex en texto plano si no hubo tablas
+    if not materias_raw:
+        log.info("Tablas vacías, usando regex en texto plano para horario")
+        # Patrón: clave seguida de nombre y créditos en la misma línea
+        patron = re.compile(
+            r"([A-Z]{1,3}\d{3,5})\s+(.+?)\s+(\d{1,2})\s*(?:cr(?:é|e)ditos?)?",
+            re.IGNORECASE
+        )
+        for linea in full_text.splitlines():
+            m = patron.search(linea)
+            if m:
+                try:
+                    cr = int(m.group(3))
+                except ValueError:
+                    cr = 0
+                if 0 <= cr <= 12:
+                    materias_raw.append({
+                        "nrc": "",
+                        "clave": m.group(1).upper(),
+                        "nombre": _limpiar(m.group(2)).upper(),
+                        "creditos": cr,
+                    })
+
+    # Deduplicar por clave (quedar solo el primero)
+    vistas = set()
+    materias = []
+    for m in materias_raw:
+        if m["clave"] not in vistas:
+            vistas.add(m["clave"])
+            materias.append(m)
+
+    codigo    = _parse_codigo_horario(full_text)
+    calendario = _parse_calendario_horario(full_text)
+
+    log.info("Horario extraído: alumno=%s, calendario=%s, materias=%d",
+             codigo, calendario, len(materias))
+
+    return {
+        "codigo": codigo,
+        "calendario": calendario,
+        "materias": materias,
+        "texto_completo": full_text[:2000],  # Para debug si es necesario
+    }
+
+
+class HorarioExtractor:
+    """Carga un PDF de horario a la tabla `horario` de la BD."""
+
+    def __init__(self, db_path: str = "kardex_udg.db"):
+        self.conn = init_db(db_path)
+
+    def cargar_pdf(self, pdf_path: str, codigo_override: str = None,
+                   calendario_override: str = None) -> dict:
+        """
+        Procesa el PDF de horario y guarda en la BD.
+
+        Args:
+            pdf_path:            Ruta al PDF del horario.
+            codigo_override:     Código del alumno (si el PDF no lo trae claro).
+            calendario_override: Ej. "2025-B" (si el PDF no lo detecta).
+
+        Returns dict con ok, codigo, calendario, guardadas, materias.
+        """
+        if not Path(pdf_path).exists():
+            return {"ok": False, "error": f"Archivo no encontrado: {pdf_path}"}
+
+        try:
+            datos = extraer_horario_pdf(pdf_path)
+        except Exception as e:
+            log.exception("Error extrayendo horario PDF")
+            return {"ok": False, "error": f"Error al leer el PDF: {e}"}
+
+        codigo     = codigo_override or datos.get("codigo", "")
+        calendario = calendario_override or datos.get("calendario", "")
+        materias   = datos.get("materias", [])
+
+        if not codigo:
+            return {
+                "ok": False,
+                "error": "No se pudo detectar el código del alumno en el PDF. "
+                         "Pasa el código manualmente en el campo 'codigo'.",
+                "materias_detectadas": materias,
+                "calendario_detectado": calendario,
+            }
+
+        if not calendario:
+            return {
+                "ok": False,
+                "error": "No se detectó el calendario en el PDF. "
+                         "Indica el calendario manualmente (ej: 2025-B).",
+                "codigo": codigo,
+                "materias_detectadas": materias,
+            }
+
+        if not materias:
+            return {
+                "ok": False,
+                "error": "No se encontraron materias en el horario PDF. "
+                         "Verifica que el archivo sea un horario de UDG.",
+                "codigo": codigo,
+                "calendario": calendario,
+            }
+
+        # Verificar que existe el alumno
+        cur = self.conn.cursor()
+        alumno = cur.execute(
+            "SELECT id FROM alumnos WHERE codigo=?", (codigo,)
+        ).fetchone()
+
+        if not alumno:
+            return {
+                "ok": False,
+                "error": f"Alumno con código '{codigo}' no encontrado en la BD. "
+                         "Primero carga el kárdex.",
+                "codigo": codigo,
+                "calendario": calendario,
+                "materias_detectadas": materias,
+            }
+
+        alumno_id = alumno["id"]
+
+        # Borrar horario previo del mismo calendario y reinsertar
+        cur.execute(
+            "DELETE FROM horario WHERE alumno_id=? AND calendario=?",
+            (alumno_id, calendario)
+        )
+
+        guardadas = 0
+        for m in materias:
+            try:
+                cur.execute("""
+                    INSERT OR REPLACE INTO horario
+                      (alumno_id, clave, nombre, creditos, calendario)
+                    VALUES (?,?,?,?,?)
+                """, (
+                    alumno_id,
+                    str(m.get("clave", "")).upper().strip(),
+                    str(m.get("nombre", "")).strip(),
+                    int(m.get("creditos", 0)),
+                    calendario,
+                ))
+                guardadas += 1
+            except Exception as err:
+                log.warning("No se pudo insertar materia horario %s: %s", m, err)
+
+        self.conn.commit()
+        log.info("Horario guardado: alumno=%s, calendario=%s, materias=%d",
+                 codigo, calendario, guardadas)
+
+        return {
+            "ok": True,
+            "codigo": codigo,
+            "calendario": calendario,
+            "guardadas": guardadas,
+            "materias": materias,
+        }
