@@ -363,6 +363,30 @@ tr:hover td{background:rgba(255,255,255,.015)}
   </div>
 </div>
 
+<!-- Modal: equivalencia manual de materias no reconocidas -->
+<div class="modal-backdrop hidden" id="modal-equivalencia">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-header">
+      <span class="modal-title">🔗 ASIGNAR EQUIVALENCIA DE MATERIAS</span>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-equivalencia')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-yellow" style="margin-bottom:16px">
+        <span class="alert-icon">⚠️</span>
+        <div>
+          <strong>Materias no identificadas en el plan de estudios</strong>
+          El sistema no pudo encontrar estas materias por clave ni por nombre similar.
+          Busca con qué materia oficial hacen equivalencia para que puedan asignarse al área correcta.
+        </div>
+      </div>
+      <div id="equiv-lista"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-equivalencia')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Header -->
 <header>
   <a class="logo" href="#" onclick="showWelcome();return false">
@@ -579,7 +603,21 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <div class="card-body"><div id="area-list"></div></div>
   </div>
 
-  <!-- SECCIÓN: Horario actual (editable en dashboard) -->
+  <!-- SECCIÓN: Horario actual — materias en curso (informativo) -->
+  <div class="card mb-16" style="margin-bottom:16px" id="sec-horario-activo">
+    <div class="card-header">
+      📋 MATERIAS EN CURSO (HORARIO ACTUAL)
+      <div class="ml-auto flex gap-8">
+        <span class="text-muted text-xs text-mono" id="horario-cal-label">—</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <p class="text-sm text-muted" style="margin-bottom:12px">Estas materias están registradas en tu horario actual. <strong>No aparecen</strong> en las sugerencias porque ya las estás cursando.</p>
+      <div id="horario-activo-list"></div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN: Horario editable (agregar/guardar) -->
   <div class="card mb-16" style="margin-bottom:16px">
     <div class="card-header">
       📅 HORARIO ACTUAL
@@ -819,18 +857,22 @@ async function procesarHorarioPDF(){
   try{
     const r=await fetch(`${API}/api/horario/cargar`,{method:'POST',body:fd});
     const d=await r.json();
-    if(!d.ok){ toast(d.error||'Error al leer el PDF','red'); return; }
-    // Rellenar materias desde el resultado
-    const nuevas = d.materias||[];
-    nuevas.forEach(m=>{
-      if(!state.horario.find(h=>h.clave===m.clave))
-        state.horario.push({clave:m.clave, nombre:m.nombre, creditos:m.creditos||0});
-    });
-    // Guardar calendario detectado
-    if(d.calendario) document.getElementById('horario-calendario').value=d.calendario;
-    renderHorarioStep();
-    toast(`✅ ${nuevas.length} materia(s) extraída(s) del PDF`,'green');
-    if(d.aviso) toast(d.aviso,'yellow');
+    if(d.ok){
+      const nuevas = d.materias||[];
+      nuevas.forEach(m=>{
+        if(!state.horario.find(h=>h.clave===m.clave))
+          state.horario.push({clave:m.clave, nombre:m.nombre, creditos:m.creditos||0});
+      });
+      if(d.calendario) document.getElementById('horario-calendario').value=d.calendario;
+      renderHorarioStep();
+      toast(`✅ ${nuevas.length} materia(s) extraída(s) del PDF`,'green');
+      if(d.aviso) toast(d.aviso,'blue');
+      // Si el servidor guardó y reportó materias sin equivalencia
+      if(d.requieren_equivalencia&&d.requieren_equivalencia.length>0){
+        const cal=d.calendario||document.getElementById('horario-calendario').value||'SIN-CALENDARIO';
+        mostrarPanelEquivalencia(d.requieren_equivalencia, cal);
+      }
+    } else { toast(d.error||'Error al leer el PDF','red'); return; }
   }catch(e){ toast('Error de conexión','red'); }
   finally{
     spinner.classList.add('hidden');
@@ -1055,6 +1097,7 @@ function renderDashboard(d,calActual){
 
   renderAreas(d.por_area||[]);
   renderAlertas(d.alertas||[]);
+  renderHorarioActivo(d.horario||[]);
   renderDisponibles(d.disponibles||[]);
   renderBloqueadas(d.bloqueadas||[]);
 }
@@ -1120,21 +1163,44 @@ function labelTipo(t){
   return m[t]||'';
 }
 
+/* ── Horario activo (materias en curso, solo lectura) ── */
+function renderHorarioActivo(horario){
+  const sec=document.getElementById('sec-horario-activo');
+  const el=document.getElementById('horario-activo-list');
+  if(!horario||!horario.length){
+    if(sec)sec.style.display='none';
+    return;
+  }
+  if(sec)sec.style.display='';
+  const totalCr=horario.reduce((s,h)=>s+(h.creditos||0),0);
+  el.innerHTML=`
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+      ${horario.map(h=>`
+      <div style="background:var(--blue-dim);border:1px solid rgba(77,159,255,.3);border-radius:var(--r);padding:7px 12px;display:flex;align-items:center;gap:8px">
+        <span class="materia-clave" style="color:var(--blue)">${h.clave}</span>
+        <span style="font-size:13px;font-weight:500">${h.nombre}</span>
+        <span class="badge badge-blue">${h.creditos||0} cr</span>
+      </div>`).join('')}
+    </div>
+    <div class="text-xs text-muted text-mono">${horario.length} materia(s) · ${totalCr} créditos en curso</div>`;
+}
+
 /* ── Disponibles ── */
 let _disponibles=[];
-function renderDisponibles(mats){_disponibles=mats;filterDisponibles('all')}
+function renderDisponibles(mats){_disponibles=mats;filterDisponibles(state.filtroArea||'all')}
 function filterDisponibles(area,ev){
   state.filtroArea=area;
   document.querySelectorAll('#filter-chips .chip').forEach(c=>c.classList.remove('active'));
   if(ev&&ev.target)ev.target.classList.add('active');
   else{const chips=document.querySelectorAll('#filter-chips .chip');if(area==='all')chips[0].classList.add('active')}
+  // Las materias en horario ya NO vienen en disponibles (filtradas en backend)
   let list=_disponibles;
   if(area==='priority')list=list.filter(m=>m.prioritaria);
   else if(area!=='all')list=list.filter(m=>m.area_cod===area);
   const el=document.getElementById('disponibles-list');
   if(!list.length){el.innerHTML='<div class="empty"><span class="empty-icon">✅</span>Sin materias con este filtro</div>';return}
   el.innerHTML=list.map(m=>`
-    <div class="materia-item ${m.prioritaria?'priority':''} ${m.en_horario?'in-horario':''}">
+    <div class="materia-item ${m.prioritaria?'priority':''}">
       <span class="materia-clave">${m.clave}</span>
       <div style="flex:1">
         <div class="materia-nombre">${m.nombre}</div>
@@ -1142,7 +1208,6 @@ function filterDisponibles(area,ev){
         <div class="materia-badges">
           <span class="badge badge-muted">${m.creditos} cr</span>
           ${m.prioritaria?'<span class="badge badge-orange">⚡ Prioritaria</span>':''}
-          ${m.en_horario?'<span class="badge badge-blue">📅 En horario</span>':''}
         </div>
       </div>
     </div>`).join('');
@@ -1214,8 +1279,13 @@ async function guardarHorario(){
       body:JSON.stringify({calendario:cal,materias:state.horario})
     });
     const d=await r.json();
-    if(d.ok){toast(`Horario guardado (${d.guardadas} materias)`,'green');await reanalizar()}
-    else toast(d.error||'Error','red');
+    if(d.ok){
+      toast(`Horario guardado (${d.guardadas} materias)`,'green');
+      if(d.requieren_equivalencia&&d.requieren_equivalencia.length>0){
+        mostrarPanelEquivalencia(d.requieren_equivalencia, cal);
+      }
+      await reanalizar();
+    } else toast(d.error||'Error','red');
   }catch(e){toast('Error de conexión','red')}
   finally{hideLoader()}
 }
@@ -1316,7 +1386,118 @@ async function buscarPorAreaTab(){
     </div></div>`).join('')||'<div class="empty">Sin materias en esa área</div>';
 }
 
-/* ══════════════════════ INIT ══════════════════════ */
+/* ══════════════════════ EQUIVALENCIA MANUAL ══════════════════════ */
+let _pendientesEquiv=[];
+let _calEquiv='';
+
+function mostrarPanelEquivalencia(pendientes, calendario){
+  _pendientesEquiv=[...pendientes];
+  _calEquiv=calendario;
+  renderPanelEquivalencia();
+  openModal('modal-equivalencia');
+}
+
+function renderPanelEquivalencia(){
+  const el=document.getElementById('equiv-lista');
+  if(!_pendientesEquiv.length){
+    el.innerHTML='<div class="alert alert-green"><span class="alert-icon">✅</span><div>Todas las materias fueron asignadas correctamente.</div></div>';
+    setTimeout(()=>closeModal('modal-equivalencia'),1500);
+    return;
+  }
+  el.innerHTML=_pendientesEquiv.map((m,i)=>`
+    <div class="card" style="margin-bottom:12px;padding:14px">
+      <div style="margin-bottom:8px">
+        <span class="materia-clave">${m.clave_horario}</span>
+        <span style="margin-left:8px;font-weight:500">${m.nombre_horario}</span>
+        <span class="badge badge-muted" style="margin-left:8px">${m.creditos} cr</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+        ⚠️ Esta materia no se encontró en el plan de estudios. Indica con cuál materia oficial hace equivalencia:
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="equiv-query-${i}" placeholder="Busca por clave o nombre..." style="flex:1;min-width:180px"
+          oninput="buscarEquivSugerencias(${i})" onkeydown="if(event.key==='Enter')buscarEquivSugerencias(${i})"/>
+      </div>
+      <div id="equiv-resultados-${i}" style="margin-top:8px"></div>
+    </div>`).join('');
+}
+
+async function buscarEquivSugerencias(idx){
+  const q=document.getElementById(`equiv-query-${idx}`).value.trim();
+  if(!q)return;
+  const r=await fetch(`${API}/api/alumnos/${state.codigo}/sugerir?q=${encodeURIComponent(q)}`);
+  const d=await r.json();
+  const el=document.getElementById(`equiv-resultados-${idx}`);
+  if(d.encontrado){
+    const m=d.materia;
+    el.innerHTML=`<div class="materia-item" style="background:var(--green-dim);border-color:rgba(0,217,126,.3);cursor:pointer" onclick="confirmarEquiv(${idx},'${m.clave}')">
+      <span class="materia-clave">${m.clave}</span>
+      <div style="flex:1">
+        <div class="materia-nombre">${m.materia||m.nombre}</div>
+        <div class="materia-area">${m.area}</div>
+        <div class="materia-badges"><span class="badge badge-green">${m.creditos} cr</span>
+          <span class="badge badge-blue" style="cursor:pointer">👆 Seleccionar esta</span>
+        </div>
+      </div></div>`;
+  } else if(d.filtro==='ninguno'){
+    // Mostrar selector de área
+    el.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">${d.mensaje}</div>
+      <select id="equiv-area-${idx}" onchange="buscarEquivPorArea(${idx})" style="margin-bottom:8px">
+        <option value="">— Seleccionar área —</option>
+        ${(d.areas||[]).sort().map(a=>`<option value="${a}">${a}</option>`).join('')}
+      </select>
+      <div id="equiv-area-lista-${idx}"></div>`;
+  } else {
+    el.innerHTML=`<div class="alert alert-muted" style="font-size:12px">No encontrada. Prueba con otra búsqueda o selecciona el área.</div>`;
+  }
+}
+
+async function buscarEquivPorArea(idx){
+  const area=document.getElementById(`equiv-area-${idx}`).value;
+  if(!area)return;
+  const q=document.getElementById(`equiv-query-${idx}`).value.trim()||'x';
+  const r=await fetch(`${API}/api/alumnos/${state.codigo}/sugerir?q=${encodeURIComponent(q)}&area=${encodeURIComponent(area)}`);
+  const d=await r.json();
+  const el=document.getElementById(`equiv-area-lista-${idx}`);
+  el.innerHTML=(d.lista_area||[]).map(m=>`
+    <div class="materia-item" style="cursor:pointer;margin-bottom:4px" onclick="confirmarEquiv(${idx},'${m.clave}')">
+      <span class="materia-clave">${m.clave}</span>
+      <div style="flex:1">
+        <div class="materia-nombre">${m.materia||m.nombre}</div>
+        <div class="materia-area">${m.area}</div>
+        <div class="materia-badges"><span class="badge badge-muted">${m.creditos} cr</span>
+          <span class="badge badge-blue">👆 Seleccionar</span>
+        </div>
+      </div></div>`).join('')||'<div class="empty">Sin materias en esa área</div>';
+}
+
+async function confirmarEquiv(idx, clavePlan){
+  const pendiente=_pendientesEquiv[idx];
+  if(!pendiente)return;
+  showLoader('Asignando equivalencia...');
+  try{
+    const r=await fetch(`${API}/api/alumnos/${state.codigo}/horario/equivalencia`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        clave_horario: pendiente.clave_horario,
+        clave_plan: clavePlan,
+        calendario: _calEquiv,
+      })
+    });
+    const d=await r.json();
+    if(d.ok){
+      toast(`✅ ${pendiente.nombre_horario} → ${d.nombre_asignado} (${d.area})`,'green',5000);
+      _pendientesEquiv.splice(idx,1);
+      renderPanelEquivalencia();
+      await reanalizar();
+    } else {
+      toast(d.error||'Error al asignar','red');
+    }
+  }catch(e){toast('Error de conexión','red')}
+  finally{hideLoader()}
+}
+
+
 document.querySelectorAll('.modal-backdrop').forEach(b=>{
   b.addEventListener('click',e=>{if(e.target===b)b.classList.add('hidden')});
 });
