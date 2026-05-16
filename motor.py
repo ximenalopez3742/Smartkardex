@@ -253,7 +253,26 @@ class MotorInferencia:
         # ── 8. Materias reprobadas (prioritarias) ─────────────────
         # Claves reprobadas que están en el plan → deben ser prioritarias
         claves_prioritarias = set(rep_activas.keys())
- 
+
+        # ── 8b. Áreas proyectadas como completas con el horario actual ──
+        # Si (créditos aprobados + créditos en horario) >= requeridos oficiales
+        # → el área se considera "cubierta proyectivamente": no sugerir más materias
+        # de esa área. Los créditos del horario NO se suman al kárdex real.
+        areas_proyectadas_completas = set()
+        # Construir mapa área → créditos aprobados propios
+        creditos_aprobados_por_area = dict(creditos_propios_por_area)
+        for area_nombre_plan, cred_hor in creditos_en_horario_por_area.items():
+            cred_aprobados = creditos_aprobados_por_area.get(area_nombre_plan, 0)
+            req_oficial = 0
+            for key, val in CREDITOS_REQUERIDOS_AREA.items():
+                if normalizar(key) == normalizar(area_nombre_plan):
+                    req_oficial = val
+                    break
+            if req_oficial > 0 and (cred_aprobados + cred_hor) >= req_oficial:
+                areas_proyectadas_completas.add(area_nombre_plan)
+                log.info("Área '%s' proyectada completa: %d aprobados + %d en horario >= %d requeridos",
+                         area_nombre_plan, cred_aprobados, cred_hor, req_oficial)
+
         # ── 9. Clasificar materias disponibles/bloqueadas ─────────
         disponibles = []
         bloqueadas = []
@@ -275,6 +294,11 @@ class MotorInferencia:
  
             # Si está en el horario actual → ya está inscrita, no sugerir
             if clave in claves_en_horario:
+                continue
+
+            # Área proyectada completa con el horario → no sugerir más de ella
+            # (excepto prioritarias: una materia reprobada siempre se recuerda)
+            if area in areas_proyectadas_completas and clave not in claves_prioritarias:
                 continue
 
             # Filtrar por orientación si el alumno ya eligió
@@ -470,6 +494,7 @@ class MotorInferencia:
             "discrepancia_creditos": diferencia_creditos,
             "rep_activas": {k: {**v, "calendarios": list(v["calendarios"])}
                             for k, v in rep_activas.items()},
+            "areas_proyectadas_completas": list(areas_proyectadas_completas),
         }
  
     def sugerir_materia(self, codigo_alumno: str, query: str, area_manual: str = None) -> dict:
