@@ -1,621 +1,460 @@
 """
-app.py — Smartkardex Web API
-Flask backend que expone el sistema de Kárdex UDG como REST API.
-En producción (Render) también sirve el frontend estático.
+motor.py — Motor de Inferencia IA para sugerencias académicas
+=============================================================
+Compara el historial del alumno contra el Plan de Estudios IELC y genera:
+- Materias disponibles para el próximo ciclo (prerrequisitos cumplidos)
+- Materias bloqueadas y por qué prerrequisito les falta
+- Alertas institucionales (Art. 33, Servicio Social, Prácticas)
+- Progreso por área de formación
 
-Endpoints implementados:
-  GET  /api/health
-  GET  /api/plan/status
-  POST /api/plan/importar
-  GET  /api/alumnos
-  GET  /api/alumnos/<codigo>
-  DELETE /api/alumnos/<codigo>
-  POST /api/alumnos/<codigo>/perfil          ← nuevo
-  GET  /api/alumnos/<codigo>/analizar
-  POST /api/alumnos/<codigo>/analizar        ← acepta horario en body
-  GET  /api/alumnos/<codigo>/horario         ← nuevo
-  POST /api/alumnos/<codigo>/horario         ← nuevo
-  GET  /api/alumnos/<codigo>/sugerir         ← nuevo
-  POST /api/kardex/cargar
-  POST /api/horario/cargar                   ← nuevo (PDF horario)
+CAMBIOS v2:
+- Comparación de horario por CLAVE y por NOMBRE (normalizado)
+- Las materias que ya están en el horario NO se sugieren como disponibles
+- Los créditos de materias del horario NO se suman al progreso real por área
+  (se muestran como "en curso" aparte, sin inflar los créditos aprobados)
 """
 
-import os
-import io
-import sys
-import json
-import tempfile
-import traceback
 import re
-from pathlib import Path
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
+from collections import defaultdict
+from typing import Optional
 
-sys.path.insert(0, os.path.dirname(__file__))
-
-from database import init_db, normalizar
-from extractor import KardexExtractor
-from motor import MotorInferencia
-from plan import importar_plan_estudios
-
-app = Flask(__name__, static_folder="static", static_url_path="")
-CORS(app)
-
-BASE_DIR = Path(__file__).parent
-DB_FILE  = str(BASE_DIR / "kardex_udg.db")
-CSV_FILE = str(BASE_DIR / "Plan de Estudios IELC - Hoja 6.csv")
+from database import (
+    init_db, normalizar,
+    PCT_SERVICIO_SOCIAL, PCT_PRACTICAS_PROF,
+    MAX_REPROBACIONES, TOP_SUGERENCIAS, CREDITOS_TOTALES_IELC,
+    log,
+)
 
 
-class CaptureOutput:
-    def __enter__(self):
-        self._old = sys.stdout
-        self._buf = io.StringIO()
-        sys.stdout = self._buf
-        return self._buf
-
-    def __exit__(self, *a):
-        sys.stdout = self._old
+def _barra(pct: float, ancho: int = 8) -> str:
+    llenas = int(pct / 100 * ancho)
+    return "█" * llenas + "░" * (ancho - llenas)
 
 
-def get_conn():
-    import sqlite3
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
-
-
-# ── Servir frontend ──────────────────────────────────────────
-@app.route("/")
-def index():
-    return send_from_directory("static", "index.html")
-
-
-# ── Health ───────────────────────────────────────────────────
-@app.route("/api/health")
-def health():
-    return jsonify({"status": "ok", "version": "1.2"})
-
-
-# ── Plan de estudios ─────────────────────────────────────────
-@app.route("/api/plan/status")
-def plan_status():
-    conn = get_conn()
-    count = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
-    conn.close()
-    return jsonify({"cargado": count > 0, "total_materias": count})
-
-
-@app.route("/api/plan/importar", methods=["POST"])
-def importar_plan():
-    try:
-        with CaptureOutput() as buf:
-            importar_plan_estudios(db_path=DB_FILE, csv_path=CSV_FILE)
-        return jsonify({"ok": True, "mensaje": buf.getvalue()})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-
-# ── Listar alumnos ───────────────────────────────────────────
-@app.route("/api/alumnos")
-def listar_alumnos():
-    conn = get_conn()
-    rows = conn.execute("""
-        SELECT codigo, nombre, carrera, creditos_adquiridos,
-               creditos_requeridos, promedio, ultimo_ciclo, situacion
-        FROM alumnos ORDER BY nombre
-    """).fetchall()
-    conn.close()
-    return jsonify([dict(r) for r in rows])
-
-
-# ── Consultar alumno ─────────────────────────────────────────
-@app.route("/api/alumnos/<codigo>")
-def consultar_alumno(codigo):
-    conn = get_conn()
-    alumno = conn.execute("SELECT * FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
-    if not alumno:
-        conn.close()
-        return jsonify({"error": f"Alumno {codigo} no encontrado"}), 404
-
-    alumno_dict = dict(alumno)
-    alumno_id = alumno_dict["id"]
-
-    materias = conn.execute("""
-        SELECT clave, nombre, calificacion, estatus, creditos,
-               tipo, calendario, fecha_eval
-        FROM materias WHERE alumno_id=? ORDER BY calendario, nombre
-    """, (alumno_id,)).fetchall()
-
-    creditos_area = conn.execute("""
-        SELECT area, requeridos, adquiridos, faltantes
-        FROM creditos_por_area WHERE alumno_id=? ORDER BY area
-    """, (alumno_id,)).fetchall()
-
-    conn.close()
-    return jsonify({
-        "alumno": alumno_dict,
-        "materias": [dict(m) for m in materias],
-        "creditos_area": [dict(c) for c in creditos_area],
-    })
-
-
-# ── Guardar perfil (orientación, servicio, prácticas) ────────
-@app.route("/api/alumnos/<codigo>/perfil", methods=["POST"])
-def guardar_perfil(codigo):
+def _estatus_final(intentos: list[dict]) -> dict:
     """
-    Guarda preferencias del alumno: orientación elegida,
-    si ya realizó servicio social y/o prácticas profesionales.
+    Determina el estatus FINAL de una materia a partir de todos sus intentos.
+    Regla clave: si ALGÚN intento es APROBADA → la materia está aprobada.
+    Esto es crítico para no bloquear prerrequisitos de materias que fueron
+    reprobadas en ciclos anteriores pero eventualmente aprobadas.
     """
-    try:
-        conn = get_conn()
-        alumno = conn.execute(
-            "SELECT id FROM alumnos WHERE codigo=?", (codigo,)
-        ).fetchone()
+    aprobados = [i for i in intentos if i.get("estatus") == "APROBADA"]
+    reprobados = [i for i in intentos if i.get("estatus") == "REPROBADA"]
 
-        if not alumno:
-            conn.close()
-            # Si el alumno no está aún (sesión perdida), devolver SESSION_EXPIRED
-            return jsonify({"error": "SESSION_EXPIRED"}), 404
-
-        body = request.get_json(silent=True) or {}
-        orientacion = body.get("orientacion", "") or ""
-        servicio_social = bool(body.get("servicio_social", False))
-        practicas = bool(body.get("practicas", False))
-
-        # Guardar en columnas extras — las añadimos si no existen
-        # (ALTER TABLE es idempotente con el try/except)
-        for col, typ in [
-            ("orientacion_elegida", "TEXT"),
-            ("servicio_social", "INTEGER"),
-            ("practicas_profesionales", "INTEGER"),
-        ]:
-            try:
-                conn.execute(f"ALTER TABLE alumnos ADD COLUMN {col} {typ}")
-                conn.commit()
-            except Exception:
-                pass  # columna ya existe
-
-        conn.execute("""
-            UPDATE alumnos
-            SET orientacion_elegida=?, servicio_social=?, practicas_profesionales=?
-            WHERE codigo=?
-        """, (orientacion or None, int(servicio_social), int(practicas), codigo))
-        conn.commit()
-        conn.close()
-        return jsonify({"ok": True})
-
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+    if aprobados:
+        mejor = max(aprobados, key=lambda x: (x.get("creditos", 0), x.get("fecha_eval") or ""))
+        return {
+            "final": "APROBADA",
+            "ref": mejor,
+            "calendarios_rep": {r.get("calendario") for r in reprobados} - {None},
+        }
+    else:
+        ultimo = max(intentos, key=lambda x: x.get("fecha_eval") or "") if intentos else {}
+        return {
+            "final": "REPROBADA",
+            "ref": ultimo,
+            "calendarios_rep": {r.get("calendario") for r in reprobados} - {None},
+        }
 
 
-# ── Analizar alumno ──────────────────────────────────────────
-@app.route("/api/alumnos/<codigo>/analizar", methods=["GET", "POST"])
-def analizar_alumno(codigo):
-    """
-    Analiza el kárdex y devuelve materias disponibles, bloqueadas, alertas y avance.
+class MotorInferencia:
+    """Motor de análisis académico e inferencia de materias disponibles."""
 
-    El horario activo (materias ya inscritas) puede enviarse para:
-      1. Excluirlas de las sugerencias (ya están inscritas).
-      2. No sumar sus créditos al avance real por área.
-      3. Comparar por CLAVE y por NOMBRE (normalizado).
+    def __init__(self, db_path: str = "kardex_udg.db"):
+        self.conn = init_db(db_path)
 
-    Formas de enviar el horario:
-      POST body JSON: { "horario": [{"clave":"I5886","nombre":"CALCULO DIFERENCIAL"}, ...] }
-      GET query:      ?horario=I5886,I5887  (solo claves)
-    """
-    try:
-        horario: list[dict] = []
+    def analizar(self, codigo_alumno: str, horario: list[dict] | None = None) -> Optional[dict]:
+        """
+        Analiza la situación académica completa de un alumno.
 
-        # Intentar cargar el horario guardado en BD primero
-        conn = get_conn()
-        alumno_row = conn.execute(
-            "SELECT id FROM alumnos WHERE codigo=?", (codigo,)
-        ).fetchone()
+        Args:
+            codigo_alumno: Código del alumno a analizar.
+            horario: Lista de materias actualmente inscritas (del horario vigente).
+                     Cada elemento debe tener al menos 'clave' y/o 'nombre'.
+                     Ej: [{"clave": "I5886", "nombre": "CALCULO DIFERENCIAL"}, ...]
 
-        if not alumno_row:
-            conn.close()
-            return jsonify({"error": "SESSION_EXPIRED"}), 404
+                     Las materias del horario:
+                     1. NO se sugieren como "disponibles" (ya están inscritas).
+                     2. Sus créditos NO se suman al avance real por área
+                        (aún no están aprobadas).
 
-        alumno_id = alumno_row["id"]
+        Retorna dict con: alumno, disponibles, bloqueadas, alertas, por_area, en_horario
+        """
+        cursor = self.conn.cursor()
 
-        # Horario persistido en BD
-        try:
-            saved = conn.execute("""
-                SELECT clave, nombre, creditos, calendario
-                FROM horario_materias WHERE alumno_id=?
-                ORDER BY id
-            """, (alumno_id,)).fetchall()
-            horario = [dict(r) for r in saved]
-        except Exception:
-            horario = []
-        conn.close()
+        # ── 1. Obtener alumno ─────────────────────────────────────
+        cursor.execute("""
+            SELECT id, codigo, nombre, carrera, codigo_carrera,
+                   creditos_adquiridos, creditos_requeridos,
+                   creditos_faltantes, promedio,
+                   ciclo_admision, ultimo_ciclo, situacion
+            FROM alumnos
+            WHERE codigo = ?
+        """, (codigo_alumno,))
+        row = cursor.fetchone()
+        if not row:
+            print(f"❌ El código {codigo_alumno} no está en la base de datos.")
+            print("💡 Ejecuta primero: python kardex.py cargar <archivo.pdf>")
+            return None
 
-        # Si llega horario explícito en la petición, lo usa en su lugar
-        if request.method == "POST":
-            body = request.get_json(silent=True) or {}
-            req_horario = body.get("horario", [])
-            if req_horario:
-                horario = [
-                    h if isinstance(h, dict) else {"clave": str(h)}
-                    for h in req_horario
-                ]
-        else:
-            claves_raw = request.args.get("horario", "")
-            if claves_raw:
-                horario = [{"clave": c.strip()} for c in claves_raw.split(",") if c.strip()]
-
-        motor = MotorInferencia(db_path=DB_FILE)
-        with CaptureOutput():
-            resultado = motor.analizar(codigo, horario=horario)
-
-        if resultado is None:
-            return jsonify({"error": "SESSION_EXPIRED"}), 404
-
-        def clean(obj):
-            if isinstance(obj, set):  return list(obj)
-            if isinstance(obj, dict): return {k: clean(v) for k, v in obj.items()}
-            if isinstance(obj, list): return [clean(i) for i in obj]
-            return obj
-
-        return jsonify(clean(resultado))
-
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
-
-# ── Horario del alumno (GET: leer, POST: guardar) ────────────
-@app.route("/api/alumnos/<codigo>/horario", methods=["GET", "POST"])
-def horario_alumno(codigo):
-    """
-    GET  → devuelve la lista de materias del horario activo guardado.
-    POST → guarda el horario (calendario + materias) en la BD.
-           Body: { "calendario": "2025-B", "materias": [{clave, nombre, creditos}, ...] }
-    """
-    try:
-        conn = get_conn()
-        alumno = conn.execute(
-            "SELECT id FROM alumnos WHERE codigo=?", (codigo,)
-        ).fetchone()
-        if not alumno:
-            conn.close()
-            return jsonify({"error": "SESSION_EXPIRED"}), 404
+        alumno = dict(row)
         alumno_id = alumno["id"]
+        creditos_actuales = alumno["creditos_adquiridos"] or 0
+        creditos_requeridos = alumno["creditos_requeridos"] or CREDITOS_TOTALES_IELC
+        promedio_actual = alumno["promedio"] or 0.0
+        pct_avance = (creditos_actuales / creditos_requeridos * 100) \
+            if creditos_requeridos > 0 else 0.0
 
-        # Asegurar que la tabla existe
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS horario_materias (
-                id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                alumno_id INTEGER NOT NULL REFERENCES alumnos(id) ON DELETE CASCADE,
-                calendario TEXT,
-                clave     TEXT NOT NULL,
-                nombre    TEXT,
-                creditos  INTEGER DEFAULT 0
-            )
+        umbral_servicio = int(creditos_requeridos * PCT_SERVICIO_SOCIAL)
+        umbral_practicas = int(creditos_requeridos * PCT_PRACTICAS_PROF)
+
+        # ── 2. Construir sets de identificadores del horario ──────
+        # El horario contiene materias YA INSCRITAS en el ciclo actual.
+        # Comparamos tanto por clave como por nombre normalizado.
+        horario = horario or []
+        horario_claves: set[str] = set()   # claves en MAYÚSCULAS
+        horario_nombres: set[str] = set()  # nombres normalizados (sin tildes, min.)
+
+        for h in horario:
+            clave_h = str(h.get("clave", "")).strip().upper()
+            nombre_h = normalizar(h.get("nombre", ""))
+            if clave_h:
+                horario_claves.add(clave_h)
+            if nombre_h:
+                horario_nombres.add(nombre_h)
+
+        # ── 3. Todos los intentos del alumno ──────────────────────
+        cursor.execute("""
+            SELECT clave, nombre, estatus, calificacion,
+                   creditos, calendario, fecha_eval, tipo
+            FROM materias
+            WHERE alumno_id = ?
+            ORDER BY clave, fecha_eval
+        """, (alumno_id,))
+        todos_intentos = [dict(r) for r in cursor.fetchall()]
+
+        # ── 4. Estatus final por clave ────────────────────────────
+        # CORRECCIÓN CENTRAL: agrupar todos los intentos y determinar
+        # si la materia está aprobada o reprobada DEFINITIVAMENTE.
+        por_clave: dict = defaultdict(list)
+        for intento in todos_intentos:
+            clave_norm = str(intento["clave"]).strip().upper()
+            por_clave[clave_norm].append(intento)
+
+        claves_aprobadas: set[str] = set()
+        nombres_aprobados: set[str] = set()
+        rep_activas: dict = {}
+
+        for clave, intentos in por_clave.items():
+            resultado = _estatus_final(intentos)
+            if resultado["final"] == "APROBADA":
+                claves_aprobadas.add(clave)
+                nombre_norm = normalizar(resultado["ref"].get("nombre", ""))
+                if nombre_norm:
+                    nombres_aprobados.add(nombre_norm)
+            else:
+                if resultado["calendarios_rep"]:
+                    rep_activas[clave] = {
+                        "nombre": resultado["ref"].get("nombre", clave),
+                        "calendarios": resultado["calendarios_rep"],
+                    }
+
+        # ── 5. Plan de estudios ───────────────────────────────────
+        cursor.execute("""
+            SELECT clave, materia, area_cod, area,
+                   orientacion_cod, orientacion,
+                   creditos, prerrequisito
+            FROM plan_estudios
+            ORDER BY area_cod, materia
         """)
-        conn.commit()
+        plan_rows = cursor.fetchall()
 
-        if request.method == "GET":
-            rows = conn.execute("""
-                SELECT clave, nombre, creditos, calendario
-                FROM horario_materias WHERE alumno_id=? ORDER BY id
-            """, (alumno_id,)).fetchall()
-            conn.close()
-            return jsonify([dict(r) for r in rows])
+        if not plan_rows:
+            print("⚠️ La tabla plan_estudios está vacía.")
+            print("💡 Ejecuta: python kardex.py importar-plan")
+            return None
 
-        # POST — reemplazar horario completo
-        body = request.get_json(silent=True) or {}
-        calendario = (body.get("calendario") or "").strip()
-        materias   = body.get("materias", [])
+        # ── 6. Clasificar materias ────────────────────────────────
+        disponibles = []
+        bloqueadas = []
+        en_horario_info = []  # materias del plan que están en el horario activo
 
-        conn.execute("DELETE FROM horario_materias WHERE alumno_id=?", (alumno_id,))
-        guardadas = 0
-        for m in materias:
-            clave   = str(m.get("clave", "")).strip().upper()
-            nombre  = str(m.get("nombre", "")).strip().upper()
-            creditos = int(m.get("creditos") or 0)
-            if not clave:
+        for row in plan_rows:
+            clave = str(row["clave"]).strip().upper()
+            materia = row["materia"]
+            area_cod = row["area_cod"]
+            area = row["area"]
+            ori = row["orientacion"] or ""
+            creditos = row["creditos"]
+            pre = (row["prerrequisito"] or "").strip()
+
+            materia_norm = normalizar(materia)
+
+            # ① Ya aprobada en el kárdex → saltar
+            if clave in claves_aprobadas or materia_norm in nombres_aprobados:
                 continue
-            conn.execute("""
-                INSERT INTO horario_materias (alumno_id, calendario, clave, nombre, creditos)
-                VALUES (?,?,?,?,?)
-            """, (alumno_id, calendario, clave, nombre, creditos))
-            guardadas += 1
 
-        conn.commit()
-        conn.close()
-        return jsonify({"ok": True, "guardadas": guardadas, "calendario": calendario})
+            # ② Está en el horario activo → registrar, pero NO sugerir
+            #    La comparación es por CLAVE o por NOMBRE normalizado
+            en_horario = (
+                clave in horario_claves or
+                materia_norm in horario_nombres
+            )
+            if en_horario:
+                en_horario_info.append({
+                    "clave": clave, "nombre": materia,
+                    "area_cod": area_cod, "area": area,
+                    "orientacion": ori, "creditos": creditos,
+                })
+                continue  # no va a disponibles ni a bloqueadas
 
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+            # ③ Clasificar: disponible o bloqueada
+            if not pre:
+                disponibles.append({
+                    "clave": clave, "nombre": materia,
+                    "area_cod": area_cod, "area": area,
+                    "orientacion": ori, "creditos": creditos,
+                    "estado": "Sin prerrequisito",
+                })
+            else:
+                pre_norm = normalizar(pre)
+                pre_clave = pre.upper().strip()
 
+                # Prerrequisito cumplido: comparar por nombre normalizado O por clave
+                if pre_norm in nombres_aprobados or pre_clave in claves_aprobadas:
+                    disponibles.append({
+                        "clave": clave, "nombre": materia,
+                        "area_cod": area_cod, "area": area,
+                        "orientacion": ori, "creditos": creditos,
+                        "estado": f"Prerrequisito OK: {pre}",
+                    })
+                else:
+                    bloqueadas.append({
+                        "clave": clave, "nombre": materia,
+                        "area_cod": area_cod, "area": area,
+                        "orientacion": ori, "creditos": creditos,
+                        "prerrequisito": pre,
+                    })
 
-# ── Buscar materia / equivalencia ────────────────────────────
-@app.route("/api/alumnos/<codigo>/sugerir")
-def sugerir_materia(codigo):
-    """
-    Busca una materia en el plan de estudios por clave o nombre.
-    Query param: ?q=<clave o nombre>  &area=<nombre de área> (opcional)
+        # ── 7. Progreso por área ──────────────────────────────────
+        # Solo se cuentan créditos APROBADOS en el kárdex.
+        # Las materias del horario activo se excluyen explícitamente del JOIN
+        # para garantizar que sus créditos no se sumen al avance real,
+        # aunque un caso raro pudiera tener la misma clave aprobada y en horario.
 
-    Respuesta posible:
-      { encontrado: true,  filtro: 'clave'|'nombre', similitud, materia: {...} }
-      { encontrado: false, filtro: 'ninguno', mensaje, areas: [...] }
-      { encontrado: false, filtro: 'area', mensaje, lista_area: [...] }
-    """
-    try:
-        q   = request.args.get("q", "").strip()
-        area_sel = request.args.get("area", "").strip()
-        conn = get_conn()
+        if horario_claves:
+            placeholders = ",".join("?" * len(horario_claves))
+            cursor.execute(f"""
+                SELECT p.area_cod, p.area,
+                       COUNT(*) AS total_plan,
+                       SUM(p.creditos) AS creditos_plan,
+                       COUNT(CASE WHEN aprobada.clave IS NOT NULL THEN 1 END) AS aprobadas,
+                       COALESCE(SUM(CASE WHEN aprobada.clave IS NOT NULL
+                                   THEN p.creditos ELSE 0 END), 0) AS creditos_aprobados
+                FROM plan_estudios p
+                LEFT JOIN (
+                    SELECT UPPER(TRIM(clave)) AS clave
+                    FROM materias
+                    WHERE alumno_id = ? AND estatus = 'APROBADA'
+                      AND UPPER(TRIM(clave)) NOT IN ({placeholders})
+                    GROUP BY UPPER(TRIM(clave))
+                ) aprobada ON UPPER(TRIM(p.clave)) = aprobada.clave
+                GROUP BY p.area_cod, p.area
+                ORDER BY p.area_cod
+            """, (alumno_id, *horario_claves))
+        else:
+            cursor.execute("""
+                SELECT p.area_cod, p.area,
+                       COUNT(*) AS total_plan,
+                       SUM(p.creditos) AS creditos_plan,
+                       COUNT(CASE WHEN aprobada.clave IS NOT NULL THEN 1 END) AS aprobadas,
+                       COALESCE(SUM(CASE WHEN aprobada.clave IS NOT NULL
+                                   THEN p.creditos ELSE 0 END), 0) AS creditos_aprobados
+                FROM plan_estudios p
+                LEFT JOIN (
+                    SELECT UPPER(TRIM(clave)) AS clave
+                    FROM materias
+                    WHERE alumno_id = ? AND estatus = 'APROBADA'
+                    GROUP BY UPPER(TRIM(clave))
+                ) aprobada ON UPPER(TRIM(p.clave)) = aprobada.clave
+                GROUP BY p.area_cod, p.area
+                ORDER BY p.area_cod
+            """, (alumno_id,))
 
-        if area_sel:
-            rows = conn.execute("""
-                SELECT clave, materia, area, orientacion, creditos
-                FROM plan_estudios WHERE area=? ORDER BY materia
-            """, (area_sel,)).fetchall()
-            conn.close()
-            return jsonify({
-                "encontrado": False,
-                "filtro": "area",
-                "mensaje": f"Materias en el área '{area_sel}'",
-                "lista_area": [dict(r) for r in rows],
-            })
+        por_area = [dict(r) for r in cursor.fetchall()]
 
-        if not q:
-            conn.close()
-            return jsonify({"encontrado": False, "filtro": "ninguno", "mensaje": "Sin consulta"}), 400
+        # Calcular créditos del horario por área (informativo, no se suman al real)
+        creditos_horario_por_area: dict[str, int] = defaultdict(int)
+        for h_mat in en_horario_info:
+            creditos_horario_por_area[h_mat["area"]] += h_mat.get("creditos", 0)
 
-        # 1. Buscar por clave exacta
-        q_upper = q.upper().strip()
-        row = conn.execute(
-            "SELECT clave, materia, area, orientacion, creditos FROM plan_estudios WHERE UPPER(TRIM(clave))=?",
-            (q_upper,)
-        ).fetchone()
-        if row:
-            conn.close()
-            return jsonify({"encontrado": True, "filtro": "clave", "similitud": 1.0, "materia": dict(row)})
+        for a in por_area:
+            a["creditos_en_horario"] = creditos_horario_por_area.get(a["area"], 0)
+            a["area_cubierta"] = a["creditos_aprobados"] >= a["creditos_plan"]
 
-        # 2. Buscar por nombre normalizado (similitud)
-        q_norm = normalizar(q)
-        plan_rows = conn.execute(
-            "SELECT clave, materia, area, orientacion, creditos FROM plan_estudios"
-        ).fetchall()
+        # ── 8. Alertas ────────────────────────────────────────────
+        alertas = []
 
-        mejor = None
-        mejor_sim = 0.0
-        for pr in plan_rows:
-            n_norm = normalizar(pr["materia"])
-            # Similitud simple: proporción de palabras del query que aparecen en el nombre
-            palabras_q = set(q_norm.split())
-            palabras_n = set(n_norm.split())
-            if not palabras_q:
-                continue
-            comunes = palabras_q & palabras_n
-            sim = len(comunes) / len(palabras_q)
-            if sim > mejor_sim:
-                mejor_sim = sim
-                mejor = pr
+        # Art. 33 — reprobada en 2+ periodos distintos sin aprobar
+        for clave, info in rep_activas.items():
+            if len(info["calendarios"]) >= MAX_REPROBACIONES:
+                periodos = ", ".join(sorted(info["calendarios"]))
+                alertas.append({
+                    "tipo": "ARTICULO_33", "icono": "🔥",
+                    "descripcion": (
+                        f"'{info['nombre']}' ({clave}) reprobada en "
+                        f"{len(info['calendarios'])} periodos: {periodos}. "
+                        "Revisar aplicación del Artículo 33."
+                    ),
+                })
 
-        if mejor and mejor_sim >= 0.5:
-            conn.close()
-            return jsonify({
-                "encontrado": True,
-                "filtro": "nombre",
-                "similitud": mejor_sim,
-                "materia": dict(mejor),
-            })
+        # Prácticas / Servicio Social
+        if creditos_requeridos > 0:
+            if creditos_actuales >= umbral_practicas:
+                alertas.append({"tipo": "PRACTICAS", "icono": "🔵", "descripcion": (
+                    f"Con {creditos_actuales}/{creditos_requeridos} créditos "
+                    f"({pct_avance:.1f}%) ya puedes tramitar Prácticas Profesionales."
+                )})
+            elif creditos_actuales >= umbral_servicio:
+                alertas.append({"tipo": "SERVICIO_SOCIAL", "icono": "🟢", "descripcion": (
+                    f"Con {creditos_actuales}/{creditos_requeridos} créditos "
+                    f"({pct_avance:.1f}%) ya puedes realizar Servicio Social."
+                )})
+            else:
+                alertas.append({"tipo": "SERVICIO_PENDIENTE", "icono": "⏳", "descripcion": (
+                    f"Servicio Social: te faltan {umbral_servicio - creditos_actuales} créditos "
+                    f"({creditos_actuales}/{umbral_servicio})."
+                )})
 
-        # 3. No encontrada — devolver lista de áreas disponibles
-        areas = [r[0] for r in conn.execute(
-            "SELECT DISTINCT area FROM plan_estudios ORDER BY area"
-        ).fetchall()]
-        conn.close()
-        return jsonify({
-            "encontrado": False,
-            "filtro": "ninguno",
-            "mensaje": f"No se encontró '{q}' en el plan de estudios.",
-            "areas": areas,
-        })
+        # Promedio bajo
+        if 0 < promedio_actual < 70:
+            alertas.append({"tipo": "PROMEDIO_BAJO", "icono": "📉", "descripcion": (
+                f"Promedio {promedio_actual:.2f} por debajo de 70. Considera asesorías."
+            )})
 
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        # Inconsistencia: aprobada con 0 créditos
+        cursor.execute("""
+            SELECT clave FROM materias
+            WHERE alumno_id=? AND estatus='APROBADA' AND creditos=0
+            GROUP BY clave
+        """, (alumno_id,))
+        sin_cred = cursor.fetchall()
+        if sin_cred:
+            claves_sc = ", ".join(r["clave"] for r in sin_cred)
+            alertas.append({"tipo": "CREDITO_ERROR", "icono": "🔴", "descripcion": (
+                f"Materias aprobadas con 0 créditos: {claves_sc}. "
+                "Verificar con Servicios Escolares."
+            )})
 
+        # ── 9. Imprimir reporte ───────────────────────────────────
+        self._imprimir(
+            alumno, pct_avance, disponibles, bloqueadas,
+            alertas, por_area, len(claves_aprobadas), rep_activas,
+            en_horario_info,
+        )
 
-# ── Cargar horario desde PDF ─────────────────────────────────
-@app.route("/api/horario/cargar", methods=["POST"])
-def cargar_horario_pdf():
-    """
-    Recibe un PDF de horario escolar y extrae las materias inscritas.
-    Devuelve: { ok, materias: [{clave, nombre, creditos}], calendario, aviso }
+        return {
+            "alumno": alumno,
+            "disponibles": disponibles,
+            "bloqueadas": bloqueadas,
+            "alertas": alertas,
+            "por_area": por_area,
+            "en_horario": en_horario_info,
+        }
 
-    La extracción usa heurísticas sobre el formato de horario UDG:
-      - Detecta claves con patrón letra(s)+dígitos (ej: I5886, CC101)
-      - Extrae el nombre de la materia de la celda adyacente
-      - Detecta el calendario del encabezado
-    """
-    if "pdf" not in request.files:
-        return jsonify({"ok": False, "error": "No se envió ningún archivo PDF"}), 400
+    # ── Impresión ──────────────────────────────────────────────────
 
-    file = request.files["pdf"]
-    if not file.filename.lower().endswith(".pdf"):
-        return jsonify({"ok": False, "error": "Solo se aceptan archivos PDF"}), 400
+    def _imprimir(self, alumno, pct_avance, disponibles, bloqueadas,
+                  alertas, por_area, n_aprobadas, rep_activas, en_horario_info=None):
+        sep  = "═" * 65
+        sep2 = "─" * 65
+        en_horario_info = en_horario_info or []
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        file.save(tmp.name)
-        tmp_path = tmp.name
+        print(f"\n{sep}")
+        print(f" 🤖 MOTOR DE INFERENCIA IA — ANÁLISIS ACADÉMICO IELC")
+        print(sep)
+        print(f" Alumno   : {alumno.get('nombre','N/D')}")
+        print(f" Código   : {alumno.get('codigo','N/D')}")
+        print(f" Carrera  : {alumno.get('carrera','N/D')} ({alumno.get('codigo_carrera','')})")
+        print(f" Situación: {alumno.get('situacion','N/D')} | "
+              f"Último ciclo: {alumno.get('ultimo_ciclo','?')}")
+        print(f" Créditos : {alumno.get('creditos_adquiridos',0)} / "
+              f"{alumno.get('creditos_requeridos',0)} ({pct_avance:.1f}%)")
+        print(f" Promedio : {alumno.get('promedio',0.0):.2f}")
+        print(f" Materias aprobadas (estatus final): {n_aprobadas}")
+        print(sep2)
 
-    try:
-        import pdfplumber
+        # Materias en horario activo (inscritas, no aprobadas aún)
+        if en_horario_info:
+            print(f"\n📅 EN HORARIO ACTIVO ({len(en_horario_info)}) — créditos pendientes de aprobación:")
+            for h in en_horario_info:
+                ori = f" · {h['orientacion']}" if h.get("orientacion") else ""
+                print(f"   › [{h['clave']}] {h['nombre']}{ori}  ({h['creditos']} cr)")
 
-        materias_dict = {}   # clave → {clave, nombre, creditos}
-        calendario = ""
-        aviso = ""
+        # Avance por área
+        if por_area:
+            print(f"\n📊 AVANCE POR ÁREA (solo créditos APROBADOS):")
+            print(f"   {'Área':<40} {'Tot':>4} {'Apr':>4} {'CrPlan':>7} {'CrAdq':>6} {'EnCurso':>8}")
+            print("   " + "─" * 74)
+            for a in por_area:
+                pct_a = (a["aprobadas"] / a["total_plan"] * 100) if a["total_plan"] > 0 else 0
+                en_curso_str = f"+{a['creditos_en_horario']}cr" if a.get("creditos_en_horario") else "      -"
+                print(
+                    f"   {a['area']:<40} {a['total_plan']:>4} {a['aprobadas']:>4} "
+                    f"{a['creditos_plan']:>7} {a['creditos_aprobados']:>6} "
+                    f"{en_curso_str:>8}  "
+                    f"{_barra(pct_a)} {pct_a:.0f}%"
+                )
 
-        CAL_RE    = re.compile(r"\b(\d{4}[-–][AB])\b")
-        CLAVE_RE  = re.compile(r"^[A-Z]{1,3}\d{3,5}$", re.IGNORECASE)
-        CRED_RE   = re.compile(r"\b(\d{1,2})\s*cr", re.IGNORECASE)
+        # Reprobaciones activas
+        if rep_activas:
+            print(f"\n❌ MATERIAS CON REPROBACIONES PENDIENTES ({len(rep_activas)}):")
+            for clave, info in rep_activas.items():
+                periodos = ", ".join(sorted(info["calendarios"]))
+                print(f"   › [{clave}] {info['nombre']}")
+                print(f"     Reprobada en {len(info['calendarios'])} periodo(s): {periodos}")
 
-        with pdfplumber.open(tmp_path) as pdf:
-            full_text = ""
-            for page in pdf.pages:
-                page_text = page.extract_text() or ""
-                full_text += page_text + "\n"
+        # Materias disponibles (excluye las del horario)
+        print(f"\n✅ MATERIAS DISPONIBLES ({len(disponibles)} encontradas):")
+        if not disponibles:
+            print("   No hay materias disponibles — verifica que el plan esté cargado.")
+        else:
+            por_area_disp: dict = {}
+            for d in disponibles:
+                por_area_disp.setdefault(d["area"], []).append(d)
 
-                # Detectar calendario en el texto de la página
-                if not calendario:
-                    m = CAL_RE.search(page_text)
-                    if m:
-                        calendario = m.group(1).replace("–", "-")
+            mostradas = 0
+            for area, mats in por_area_disp.items():
+                if mostradas >= TOP_SUGERENCIAS:
+                    break
+                print(f"\n   [{area}]")
+                for d in mats:
+                    if mostradas >= TOP_SUGERENCIAS:
+                        break
+                    ori = f" · {d['orientacion']}" if d["orientacion"] else ""
+                    print(f"   › [{d['clave']}] {d['nombre']}{ori}")
+                    print(f"     {d['creditos']} créditos | {d['estado']}")
+                    mostradas += 1
 
-                # Intentar extraer materias de tablas
-                for tabla in page.extract_tables():
-                    for fila in tabla:
-                        celdas = [str(c or "").strip() for c in fila]
-                        for i, celda in enumerate(celdas):
-                            celda_clean = celda.replace(" ", "").upper()
-                            if CLAVE_RE.match(celda_clean):
-                                clave = celda_clean
-                                # Nombre: celda siguiente no vacía
-                                nombre = ""
-                                for j in range(i + 1, min(i + 4, len(celdas))):
-                                    if celdas[j] and not CLAVE_RE.match(celdas[j].replace(" ", "")):
-                                        nombre = celdas[j].upper()
-                                        break
-                                # Créditos: buscar número de créditos en la misma fila
-                                creditos = 0
-                                for c2 in celdas:
-                                    cm = CRED_RE.search(c2)
-                                    if cm:
-                                        creditos = int(cm.group(1))
-                                        break
-                                if nombre and clave not in materias_dict:
-                                    materias_dict[clave] = {
-                                        "clave": clave,
-                                        "nombre": nombre,
-                                        "creditos": creditos,
-                                    }
+            if len(disponibles) > TOP_SUGERENCIAS:
+                print(f"\n   … y {len(disponibles) - TOP_SUGERENCIAS} materias más disponibles.")
 
-            # Fallback: extraer claves del texto completo si no se encontró nada en tablas
-            if not materias_dict:
-                lineas = full_text.splitlines()
-                for linea in lineas:
-                    tokens = linea.split()
-                    for tok in tokens:
-                        tok_clean = tok.replace(" ", "").upper()
-                        if CLAVE_RE.match(tok_clean) and tok_clean not in materias_dict:
-                            materias_dict[tok_clean] = {
-                                "clave": tok_clean,
-                                "nombre": tok_clean,
-                                "creditos": 0,
-                            }
-                if materias_dict:
-                    aviso = "Se extrajeron solo claves del PDF; los nombres no pudieron detectarse automáticamente."
+        # Bloqueadas
+        if bloqueadas:
+            print(f"\n🔒 MATERIAS BLOQUEADAS ({len(bloqueadas)}):")
+            for b in bloqueadas[:6]:
+                ori = f" · {b['orientacion']}" if b["orientacion"] else ""
+                print(f"   › [{b['clave']}] {b['nombre']}{ori}")
+                print(f"     Requiere aprobar: {b['prerrequisito']}")
+            if len(bloqueadas) > 6:
+                print(f"   … y {len(bloqueadas) - 6} más bloqueadas.")
 
-        materias = list(materias_dict.values())
+        # Alertas
+        print(f"\n⚠️  ALERTAS INSTITUCIONALES:")
+        if not alertas:
+            print("   🟢 Sin alertas activas.")
+        else:
+            for a in alertas:
+                print(f"   {a['icono']} [{a['tipo']}] {a['descripcion']}")
 
-        if not materias:
-            return jsonify({
-                "ok": False,
-                "error": "No se encontraron materias en el PDF. Verifica que sea un horario UDG.",
-            }), 422
-
-        return jsonify({
-            "ok": True,
-            "materias": materias,
-            "calendario": calendario,
-            "aviso": aviso,
-        })
-
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"ok": False, "error": str(e)}), 500
-    finally:
-        os.unlink(tmp_path)
-
-
-# ── Cargar kárdex PDF ────────────────────────────────────────
-@app.route("/api/kardex/cargar", methods=["POST"])
-def cargar_kardex():
-    if "pdf" not in request.files:
-        return jsonify({"error": "No se envió ningún archivo PDF"}), 400
-
-    file = request.files["pdf"]
-    if not file.filename.lower().endswith(".pdf"):
-        return jsonify({"error": "Solo se aceptan archivos PDF"}), 400
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        file.save(tmp.name)
-        tmp_path = tmp.name
-
-    try:
-        extractor = KardexExtractor(db_path=DB_FILE)
-        with CaptureOutput() as buf:
-            extractor.cargar_pdf(tmp_path)
-
-        conn = get_conn()
-        alumno = conn.execute("""
-            SELECT codigo, nombre, carrera, creditos_adquiridos,
-                   creditos_requeridos, promedio, ultimo_ciclo,
-                   orientacion_elegida, servicio_social, practicas_profesionales
-            FROM alumnos ORDER BY fecha_carga DESC, id DESC LIMIT 1
-        """).fetchone()
-        conn.close()
-
-        return jsonify({
-            "ok": True,
-            "log": buf.getvalue(),
-            "alumno": dict(alumno) if alumno else None,
-        })
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"ok": False, "error": str(e)}), 500
-    finally:
-        os.unlink(tmp_path)
-
-
-# ── Eliminar alumno ───────────────────────────────────────────
-@app.route("/api/alumnos/<codigo>", methods=["DELETE"])
-def eliminar_alumno(codigo):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM alumnos WHERE codigo=?", (codigo,))
-    deleted = cur.rowcount
-    conn.commit()
-    conn.close()
-    if deleted == 0:
-        return jsonify({"error": "Alumno no encontrado"}), 404
-    return jsonify({"ok": True})
-
-
-# ── Arranque ──────────────────────────────────────────────────
-if __name__ == "__main__":
-    init_db(DB_FILE)
-
-    # Asegurar columnas de perfil en la tabla alumnos
-    conn = get_conn()
-    for col, typ in [
-        ("orientacion_elegida",    "TEXT"),
-        ("servicio_social",        "INTEGER DEFAULT 0"),
-        ("practicas_profesionales","INTEGER DEFAULT 0"),
-    ]:
-        try:
-            conn.execute(f"ALTER TABLE alumnos ADD COLUMN {col} {typ}")
-            conn.commit()
-        except Exception:
-            pass
-
-    plan_count = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
-    conn.close()
-
-    if plan_count == 0 and Path(CSV_FILE).exists():
-        print("📚 Importando plan de estudios...")
-        with CaptureOutput():
-            importar_plan_estudios(db_path=DB_FILE, csv_path=CSV_FILE)
-        print("✅ Plan importado.")
-
-    port = int(os.environ.get("PORT", 5000))
-    print(f"🚀 Smartkardex corriendo en http://0.0.0.0:{port}")
-    app.run(host="0.0.0.0", port=port, debug=False)
+        print(f"\n{sep}\n")
