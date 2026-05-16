@@ -1095,6 +1095,7 @@ function renderDashboard(d,calActual){
     </div>`:''}
   `;
 
+  _areasProyectadas = d.areas_proyectadas_completas || [];
   renderAreas(d.por_area||[]);
   renderAlertas(d.alertas||[]);
   renderHorarioActivo(d.horario||[]);
@@ -1112,6 +1113,7 @@ function oriNombre(c){
 }
 
 /* ── Areas ── */
+let _areasProyectadas=[];
 function renderAreas(areas){
   const el=document.getElementById('area-list');
   if(!areas.length){el.innerHTML='<div class="empty">Sin datos de áreas</div>';return}
@@ -1123,11 +1125,15 @@ function renderAreas(areas){
     const pctHor=req>0?Math.min(100,(adq+hor)/req*100):0;
     const color=pctColor(pct);
     const completa=adq>=req;
+    const proyectada=!completa&&_areasProyectadas.includes(a.area);
     return`
     <div class="area-row">
       <div>
-        <div class="area-name">${a.area||a.area_cod} ${completa?'<span class="badge badge-green" style="font-size:10px">✓</span>':''}</div>
-        <div class="text-xs text-muted">${a.aprobadas||0}/${a.total_plan||0} materias${hor>0?` · <span class="text-blue">${hor} cr en horario</span>`:''}</div>
+        <div class="area-name">${a.area||a.area_cod}
+          ${completa?'<span class="badge badge-green" style="font-size:10px">✓ Completa</span>':''}
+          ${proyectada?'<span class="badge badge-blue" style="font-size:10px">🎯 Completa c/horario</span>':''}
+        </div>
+        <div class="text-xs text-muted">${a.aprobadas||0}/${a.total_plan||0} materias${hor>0?` · <span class="text-blue">${hor} cr en horario${proyectada?' (cubre el área)':''}</span>`:''}</div>
       </div>
       <div class="area-nums">${adq}</div>
       <div class="area-nums" style="color:var(--muted)">${req}</div>
@@ -1138,7 +1144,7 @@ function renderAreas(areas){
         </div>
         <div class="progress-wrap">
           <div class="progress-bar" style="width:${pct}%;background:${color}"></div>
-          ${hor>0?`<div style="position:absolute;top:0;left:${pct}%;width:${Math.min(pctHor-pct,100-pct)}%;height:100%;background:var(--blue);opacity:.4;border-radius:0 3px 3px 0"></div>`:''}
+          ${hor>0?`<div style="position:absolute;top:0;left:${pct}%;width:${Math.min(pctHor-pct,100-pct)}%;height:100%;background:var(--blue);opacity:.5;border-radius:0 3px 3px 0"></div>`:''}
         </div>
       </div>
     </div>`;
