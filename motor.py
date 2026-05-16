@@ -14,37 +14,6 @@ Correcciones respecto a versiones anteriores:
   - Art. 33 cuenta periodos DISTINTOS de reprobación, no filas individuales
 """
 
-"""
-motor.py — Motor de Inferencia IA para sugerencias académicas
-=============================================================
-Compara el historial del alumno contra el Plan de Estudios IELC y genera:
-  - Materias disponibles para el próximo ciclo (prerrequisitos cumplidos)
-  - Materias bloqueadas y por qué prerrequisito les falta
-  - Alertas institucionales (Art. 33, Servicio Social, Prácticas)
-  - Progreso por área de formación
-
-Correcciones respecto a versiones anteriores:
-  - JOIN correcto por alumno_id (schema real de extractor.py)
-  - Estatus FINAL por materia: si tiene al menos un APROBADA, cuenta como aprobada
-    aunque tenga reprobaciones previas → desbloquea prerrequisitos correctamente
-  - Art. 33 cuenta periodos DISTINTOS de reprobación, no filas individuales
-"""
-"""
-motor.py — Motor de Inferencia IA para sugerencias académicas
-=============================================================
-Compara el historial del alumno contra el Plan de Estudios IELC y genera:
-  - Materias disponibles para el próximo ciclo (prerrequisitos cumplidos)
-  - Materias bloqueadas y por qué prerrequisito les falta
-  - Alertas institucionales (Art. 33, Servicio Social, Prácticas)
-  - Progreso por área de formación
-
-Correcciones respecto a versiones anteriores:
-  - JOIN correcto por alumno_id (schema real de extractor.py)
-  - Estatus FINAL por materia: si tiene al menos un APROBADA, cuenta como aprobada
-    aunque tenga reprobaciones previas → desbloquea prerrequisitos correctamente
-  - Art. 33 cuenta periodos DISTINTOS de reprobación, no filas individuales
-"""
-
 import re
 from collections import defaultdict
 from difflib import SequenceMatcher
