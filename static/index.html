@@ -489,51 +489,25 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <div class="card-body">
         <p class="text-sm text-muted" style="margin-bottom:16px">Agrega las materias que tienes registradas este ciclo. <strong>No</strong> suman a tus créditos adquiridos, pero sí aparecen en el análisis.</p>
 
-        <!-- Tabs: PDF o Manual -->
-        <div style="display:flex;gap:8px;margin-bottom:16px">
-          <button class="btn btn-secondary" id="tab-pdf-btn" onclick="switchHorarioTab('pdf')" style="font-size:12px">📄 Subir PDF de horario</button>
-          <button class="btn btn-ghost"     id="tab-manual-btn" onclick="switchHorarioTab('manual')" style="font-size:12px">✏️ Agregar manual</button>
+        <div class="form-group" style="max-width:220px;margin-bottom:16px">
+          <label>Calendario actual</label>
+          <input type="text" id="horario-calendario" placeholder="Ej: 2025-B"/>
         </div>
 
-        <!-- TAB PDF -->
-        <div id="horario-tab-pdf">
-          <div id="horario-upload-zone" class="upload-zone" style="min-height:120px;margin-bottom:12px"
-               ondragover="event.preventDefault();this.classList.add('drag-over')"
-               ondragleave="this.classList.remove('drag-over')"
-               ondrop="handleHorarioDrop(event)">
-            <input type="file" id="horario-file-input" accept=".pdf" onchange="handleHorarioSelect(this)" style="display:none"/>
-            <span class="upload-icon">📄</span>
-            <div class="upload-title">Arrastra el PDF de horario aquí</div>
-            <div class="upload-sub">o <label for="horario-file-input" style="color:var(--blue);cursor:pointer;text-decoration:underline">selecciona el archivo</label></div>
-            <div class="upload-sub" style="margin-top:6px;opacity:.6">Descárgalo desde SIIAUESCOLAR → Horario → Imprimir PDF</div>
-          </div>
-          <button class="btn btn-secondary" id="btn-procesar-horario-pdf" onclick="procesarHorarioPDF()" disabled style="margin-bottom:12px">
-            <span class="spinner hidden" id="horario-pdf-spinner" style="width:14px;height:14px;border-width:2px"></span>
-            Extraer materias del PDF
-          </button>
+        <!-- Agregar materia inline -->
+        <div class="horario-inline-add">
+          <input type="text" id="h2-clave" placeholder="Clave (I5890)" style="max-width:120px;text-transform:uppercase"/>
+          <input type="text" id="h2-nombre" placeholder="Nombre de la materia" style="flex:1;text-transform:uppercase"/>
+          <input type="number" id="h2-creditos" placeholder="Cr" style="max-width:70px" min="0" max="12"/>
+          <button class="btn btn-secondary" onclick="agregarHorarioInline()">➕</button>
         </div>
 
-        <!-- TAB MANUAL -->
-        <div id="horario-tab-manual" style="display:none">
-          <div class="form-group" style="max-width:220px;margin-bottom:12px">
-            <label>Calendario actual</label>
-            <input type="text" id="horario-calendario-manual" placeholder="Ej: 2025-B" oninput="document.getElementById('horario-calendario').value=this.value"/>
-          </div>
-          <div class="horario-inline-add">
-            <input type="text" id="h2-clave" placeholder="Clave (I5890)" style="max-width:120px;text-transform:uppercase"/>
-            <input type="text" id="h2-nombre" placeholder="Nombre de la materia" style="flex:1;text-transform:uppercase"/>
-            <input type="number" id="h2-creditos" placeholder="Cr" style="max-width:70px" min="0" max="12"/>
-            <button class="btn btn-secondary" onclick="agregarHorarioInline()">➕</button>
-          </div>
-        </div>
-
-        <!-- Lista unificada de materias -->
+        <!-- Lista de materias en horario -->
         <div id="horario-step-items">
           <div class="horario-empty">📭 Sin materias — puedes saltarte este paso</div>
         </div>
+
         <div id="horario-step-total" class="text-xs text-muted" style="margin-top:8px;font-family:var(--mono)">0 créditos en horario</div>
-        <!-- campo oculto de calendario (se llena desde PDF o manual) -->
-        <input type="hidden" id="horario-calendario" value=""/>
 
         <div style="display:flex;justify-content:space-between;margin-top:20px">
           <button class="btn btn-ghost" onclick="goStep(2)">← Atrás</button>
@@ -774,71 +748,6 @@ async function uploadKardex(){
   }
 }
 
-/* ══════════════════════ HORARIO PDF (PASO 3) ══════════════════════ */
-let horarioFile = null;
-
-function switchHorarioTab(tab){
-  const isPdf = tab==='pdf';
-  document.getElementById('horario-tab-pdf').style.display    = isPdf ? '' : 'none';
-  document.getElementById('horario-tab-manual').style.display = isPdf ? 'none' : '';
-  document.getElementById('tab-pdf-btn').className    = isPdf ? 'btn btn-secondary' : 'btn btn-ghost';
-  document.getElementById('tab-manual-btn').className = isPdf ? 'btn btn-ghost' : 'btn btn-secondary';
-}
-
-function handleHorarioDrop(e){
-  e.preventDefault();
-  document.getElementById('horario-upload-zone').classList.remove('drag-over');
-  const f = e.dataTransfer.files[0];
-  if(f && f.name.endsWith('.pdf')){ horarioFile=f; setHorarioFileReady(f); }
-  else toast('Solo se aceptan archivos PDF','red');
-}
-
-function handleHorarioSelect(input){
-  horarioFile = input.files[0] || null;
-  if(horarioFile) setHorarioFileReady(horarioFile);
-}
-
-function setHorarioFileReady(f){
-  document.getElementById('horario-upload-zone').innerHTML=`
-    <input type="file" id="horario-file-input" accept=".pdf" onchange="handleHorarioSelect(this)" style="display:none"/>
-    <span class="upload-icon">✅</span>
-    <div class="upload-title">${f.name}</div>
-    <div class="upload-sub">${(f.size/1024).toFixed(1)} KB · listo para procesar</div>`;
-  document.getElementById('btn-procesar-horario-pdf').disabled=false;
-}
-
-async function procesarHorarioPDF(){
-  if(!horarioFile){ toast('Selecciona el PDF primero','red'); return; }
-  const spinner=document.getElementById('horario-pdf-spinner');
-  spinner.classList.remove('hidden');
-  document.getElementById('btn-procesar-horario-pdf').disabled=true;
-  showLoader('Extrayendo materias del horario...');
-  const fd=new FormData();
-  fd.append('pdf', horarioFile);
-  if(state.codigo) fd.append('codigo', state.codigo);
-  try{
-    const r=await fetch(`${API}/api/horario/cargar`,{method:'POST',body:fd});
-    const d=await r.json();
-    if(!d.ok){ toast(d.error||'Error al leer el PDF','red'); return; }
-    // Rellenar materias desde el resultado
-    const nuevas = d.materias||[];
-    nuevas.forEach(m=>{
-      if(!state.horario.find(h=>h.clave===m.clave))
-        state.horario.push({clave:m.clave, nombre:m.nombre, creditos:m.creditos||0});
-    });
-    // Guardar calendario detectado
-    if(d.calendario) document.getElementById('horario-calendario').value=d.calendario;
-    renderHorarioStep();
-    toast(`✅ ${nuevas.length} materia(s) extraída(s) del PDF`,'green');
-    if(d.aviso) toast(d.aviso,'yellow');
-  }catch(e){ toast('Error de conexión','red'); }
-  finally{
-    spinner.classList.add('hidden');
-    document.getElementById('btn-procesar-horario-pdf').disabled=false;
-    hideLoader();
-  }
-}
-
 /* ══════════════════════ HORARIO INLINE (PASO 3) ══════════════════════ */
 function agregarHorarioInline(){
   const clave=document.getElementById('h2-clave').value.trim().toUpperCase();
@@ -891,12 +800,10 @@ async function finalizarCarga(){
     const ori=state.orientacionSeleccionada;
     const ss=document.getElementById('chk-servicio').checked;
     const pr=document.getElementById('chk-practicas').checked;
-    const rp=await fetch(`${API}/api/alumnos/${state.codigo}/perfil`,{
+    await fetch(`${API}/api/alumnos/${state.codigo}/perfil`,{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({orientacion:ori,servicio_social:ss,practicas:pr})
     });
-    const dp=await rp.json();
-    if(dp.error==='SESSION_EXPIRED'){handleSessionExpired();return}
 
     // 2. Guardar horario si hay materias
     const cal=document.getElementById('horario-calendario').value.trim()||'SIN-CALENDARIO';
@@ -918,23 +825,6 @@ async function finalizarCarga(){
   }
 }
 
-/* ══════════════════════ SESSION ══════════════════════ */
-function handleSessionExpired(){
-  state.codigo=null;state.analisis=null;state.horario=[];
-  document.getElementById('dashboard').classList.add('hidden');
-  document.getElementById('welcome').classList.remove('hidden');
-  document.getElementById('btn-reanalizar').classList.add('hidden');
-  goStep(1);
-  // Mostrar banner de sesión expirada
-  const banner=document.createElement('div');
-  banner.className='alert alert-yellow';
-  banner.style='margin-bottom:16px';
-  banner.innerHTML='<span class="alert-icon">⚠️</span><div><strong>Sesión expirada</strong>El servidor se reinició y los datos se perdieron. Por favor vuelve a subir tu kárdex PDF.</div>';
-  const welcome=document.getElementById('welcome');
-  welcome.insertBefore(banner,welcome.firstChild);
-  setTimeout(()=>banner.remove(),8000);
-}
-
 /* ══════════════════════ DASHBOARD ══════════════════════ */
 async function cargarDashboard(calActual){
   if(!state.codigo)return;
@@ -942,10 +832,10 @@ async function cargarDashboard(calActual){
   try{
     const r=await fetch(`${API}/api/alumnos/${state.codigo}/analizar`);
     const d=await r.json();
-    if(d.error==='SESSION_EXPIRED'){handleSessionExpired();return}
     if(d.error){toast(d.error,'red');return}
     state.analisis=d;
     renderDashboard(d,calActual);
+    // Sincronizar horario en dashboard
     if(calActual){
       document.getElementById('horario-calendario-dash').value=calActual;
       document.getElementById('horario-cal-label').textContent=calActual;
@@ -965,7 +855,6 @@ async function reanalizar(){
   try{
     const r=await fetch(`${API}/api/alumnos/${state.codigo}/analizar`);
     const d=await r.json();
-    if(d.error==='SESSION_EXPIRED'){handleSessionExpired();return}
     if(d.error){toast(d.error,'red');return}
     state.analisis=d;
     renderDashboard(d);
