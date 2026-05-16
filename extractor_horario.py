@@ -150,3 +150,19 @@ def extraer_horario_pdf(pdf_path: str) -> dict:
 def claves_en_horario(pdf_path: str) -> set:
     datos = extraer_horario_pdf(pdf_path)
     return {m["clave"] for m in datos.get("materias", [])}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
