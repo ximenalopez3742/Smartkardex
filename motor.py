@@ -378,26 +378,7 @@ class MotorInferencia:
  
         # ── 11. Alertas ───────────────────────────────────────────
         alertas = []
-        pct_avance = (creditos_propios_total / creditos_requeridos * 100) if creditos_requeridos > 0 else 0
- 
-        # Discrepancia de créditos
-        if abs(diferencia_creditos) > 0:
-            alertas.append({
-                "tipo": "DISCREPANCIA_CREDITOS", "icono": "⚠️",
-                "descripcion": (
-                    f"Discrepancia detectada: el kárdex reporta {creditos_kardex} créditos "
-                    f"pero el conteo propio arroja {creditos_propios_total}. "
-                    f"Diferencia: {diferencia_creditos:+d}. Verifica con Servicios Escolares."
-                ),
-            })
-        for disc in discrepancias_area:
-            alertas.append({
-                "tipo": "DISCREPANCIA_AREA", "icono": "🔎",
-                "descripcion": (
-                    f"Área '{disc['area']}': kardex dice {disc['kardex']} cr, "
-                    f"conteo propio {disc['propio']} cr."
-                ),
-            })
+        pct_avance = (creditos_kardex / creditos_requeridos * 100) if creditos_requeridos > 0 else 0
  
         # Art. 33 — reprobada en 2+ periodos distintos sin aprobar
         for clave, info in rep_activas.items():
@@ -434,49 +415,45 @@ class MotorInferencia:
                 ),
             })
  
-        # Servicio Social / Prácticas
+        # Servicio Social / Prácticas — usar créditos del kardex (fuente oficial)
         umbral_servicio  = int(creditos_requeridos * PCT_SERVICIO_SOCIAL)
         umbral_practicas = int(creditos_requeridos * PCT_PRACTICAS_PROF)
- 
-        # Servicio Social — independiente de Prácticas
-        if alumno.get("servicio_social"):
-            alertas.append({"tipo": "SERVICIO_COMPLETADO", "icono": "✅",
-                            "descripcion": "Servicio social registrado como completado."})
-        elif creditos_propios_total >= umbral_servicio:
-            alertas.append({"tipo": "SERVICIO_SOCIAL", "icono": "🟢",
-                            "descripcion": (
-                                f"Con {creditos_propios_total}/{creditos_requeridos} créditos "
-                                f"({pct_avance:.1f}%) ya puedes realizar Servicio Social "
-                                f"(requiere {umbral_servicio} cr, tienes {creditos_propios_total})."
-                            )})
-        else:
-            alertas.append({"tipo": "SERVICIO_PENDIENTE", "icono": "⏳",
-                            "descripcion": (
-                                f"Servicio Social: te faltan "
-                                f"{umbral_servicio - creditos_propios_total} créditos "
-                                f"({creditos_propios_total}/{umbral_servicio} = "
-                                f"{creditos_propios_total/umbral_servicio*100:.0f}%)."
-                            )})
 
-        # Prácticas Profesionales — independiente de Servicio Social
-        if alumno.get("practicas_profesionales"):
-            alertas.append({"tipo": "PRACTICAS_COMPLETADAS", "icono": "✅",
-                            "descripcion": "Prácticas profesionales registradas como completadas."})
-        elif creditos_propios_total >= umbral_practicas:
-            alertas.append({"tipo": "PRACTICAS", "icono": "🔵",
-                            "descripcion": (
-                                f"Con {creditos_propios_total}/{creditos_requeridos} créditos "
-                                f"({pct_avance:.1f}%) ya puedes tramitar Prácticas Profesionales "
-                                f"(requiere {umbral_practicas} cr)."
-                            )})
-        else:
-            alertas.append({"tipo": "PRACTICAS_PENDIENTE", "icono": "⏳",
-                            "descripcion": (
-                                f"Prácticas Profesionales: te faltan "
-                                f"{umbral_practicas - creditos_propios_total} créditos "
-                                f"({creditos_propios_total}/{umbral_practicas} = "
-                                f"{creditos_propios_total/umbral_practicas*100:.0f}%)."
-                            )})
+        # Servicio Social
+        if not alumno.get("servicio_social"):
+            if creditos_kardex >= umbral_servicio:
+                alertas.append({"tipo": "SERVICIO_SOCIAL", "icono": "🟢",
+                                "descripcion": (
+                                    f"Con {creditos_kardex}/{creditos_requeridos} créditos "
+                                    f"({pct_avance:.1f}%) ya puedes realizar Servicio Social "
+                                    f"(requiere {umbral_servicio} cr)."
+                                )})
+            else:
+                alertas.append({"tipo": "SERVICIO_PENDIENTE", "icono": "⏳",
+                                "descripcion": (
+                                    f"Servicio Social: te faltan "
+                                    f"{umbral_servicio - creditos_kardex} créditos "
+                                    f"({creditos_kardex}/{umbral_servicio} = "
+                                    f"{creditos_kardex/umbral_servicio*100:.0f}%)."
+                                )})
+
+        # Prácticas Profesionales
+        if not alumno.get("practicas_profesionales"):
+            if creditos_kardex >= umbral_practicas:
+                alertas.append({"tipo": "PRACTICAS", "icono": "🔵",
+                                "descripcion": (
+                                    f"Con {creditos_kardex}/{creditos_requeridos} créditos "
+                                    f"({pct_avance:.1f}%) ya puedes tramitar Prácticas Profesionales "
+                                    f"(requiere {umbral_practicas} cr)."
+                                )})
+            else:
+                alertas.append({"tipo": "PRACTICAS_PENDIENTE", "icono": "⏳",
+                                "descripcion": (
+                                    f"Prácticas Profesionales: te faltan "
+                                    f"{umbral_practicas - creditos_kardex} créditos "
+                                    f"({creditos_kardex}/{umbral_practicas} = "
+                                    f"{creditos_kardex/umbral_practicas*100:.0f}%)."
+                                )})
  
         promedio_actual = alumno["promedio"] or 0.0
         if 0 < promedio_actual < 70:
