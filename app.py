@@ -1,4 +1,5 @@
 """
+"""
 app.py — Backend Flask para SmartKardex Web (corregido)
 ========================================================
 Endpoints reales que el frontend espera:
@@ -37,22 +38,18 @@ PLAN_CSV   = os.environ.get("PLAN_CSV_PATH", "Plan de Estudios IELC - Hoja 6.csv
 SECRET_KEY = os.environ.get("SECRET_KEY", os.urandom(24).hex())
 MAX_MB     = 20
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config["SECRET_KEY"]         = SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = MAX_MB * 1024 * 1024
 CORS(app)
 
-# ─────────────────────────────────────────────────────────────────
-# GET / → sirve el frontend
-# ─────────────────────────────────────────────────────────────────
-import os as _os
+# ── Servir el frontend ────────────────────────────────────────────
 from flask import send_from_directory as _sfd
+import os as _os
 
-@app.get("/")
+@app.get('/')
 def index():
-    static_dir = _os.path.join(_os.path.dirname(__file__), "static")
-    return _sfd(static_dir, "index.html")
-
+    return _sfd(_os.path.join(_os.path.dirname(__file__), 'static'), 'index.html')
 
 # Inicializar BD al arrancar
 init_db(DB_PATH)
@@ -572,5 +569,5 @@ def server_error(e):
 
 # ─────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port, debug=False)
