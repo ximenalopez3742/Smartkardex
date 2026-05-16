@@ -42,6 +42,18 @@ app.config["SECRET_KEY"]         = SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = MAX_MB * 1024 * 1024
 CORS(app)
 
+# ─────────────────────────────────────────────────────────────────
+# GET / → sirve el frontend
+# ─────────────────────────────────────────────────────────────────
+import os as _os
+from flask import send_from_directory as _sfd
+
+@app.get("/")
+def index():
+    static_dir = _os.path.join(_os.path.dirname(__file__), "static")
+    return _sfd(static_dir, "index.html")
+
+
 # Inicializar BD al arrancar
 init_db(DB_PATH)
 
