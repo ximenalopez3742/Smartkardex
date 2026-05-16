@@ -30,6 +30,7 @@ from database import init_db
 from extractor import KardexExtractor
 from motor import MotorInferencia
 from plan import importar_plan_estudios
+from horario_extractor import extraer_horario_siiau
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 CORS(app)
@@ -97,141 +98,15 @@ def clean(obj):
 
 
 # ─────────────────────────────────────────────────────────────────
-# Extractor básico de PDF de horario (sin dependencia externa)
+# Extractor de PDF de horario SIIAU UDG (a medida del formato real)
 # ─────────────────────────────────────────────────────────────────
 
-def _extraer_materias_horario_pdf(pdf_path: str) -> list[dict]:
+def _extraer_materias_horario_pdf(pdf_path: str) -> tuple[dict, list[dict]]:
     """
-    Extrae materias del PDF de horario SIIAU.
-    Busca patrones típicos: NRC, clave, nombre, horario, aula.
-    Retorna lista de dicts con los campos encontrados.
+    Extrae alumno y materias del PDF de horario SIIAU UDG.
+    Retorna (alumno_dict, lista_materias).
     """
-    try:
-        import pdfplumber
-    except ImportError:
-        raise RuntimeError(
-            "Falta pdfplumber. Agrégalo a requirements.txt: pdfplumber"
-        )
-
-    materias = []
-    # Patrones típicos del horario SIIAU UDG
-    re_nrc   = re.compile(r'\b(\d{5})\b')
-    re_clave = re.compile(r'\b([A-Z]{1,4}\d{3,5}[A-Z]?)\b')
-    re_hora  = re.compile(r'(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})')
-    re_dias  = re.compile(r'\b(LUNES|MARTES|MIERCOLES|MIÉRCOLES|JUEVES|VIERNES|SABADO|SÁBADO'
-                          r'|LU|MA|MI|JU|VI|SA|LMJ|MJ|LV|MJV|LMJV)\b', re.I)
-
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            # Extraer tablas si las hay
-            tables = page.extract_tables()
-            if tables:
-                for table in tables:
-                    for row in table:
-                        if not row:
-                            continue
-                        row_text = " ".join(str(c or "") for c in row)
-                        _parse_horario_row(row, row_text, materias,
-                                           re_nrc, re_clave, re_hora, re_dias)
-            else:
-                # Modo texto plano
-                text = page.extract_text() or ""
-                for line in text.splitlines():
-                    line = line.strip()
-                    if len(line) < 5:
-                        continue
-                    _parse_horario_line(line, materias, re_nrc, re_clave, re_hora, re_dias)
-
-    # Deduplicar por NRC+días+hora
-    seen = set()
-    unique = []
-    for m in materias:
-        key = (m.get("nrc",""), m.get("dias",""), m.get("hora_inicio",""))
-        if key not in seen:
-            seen.add(key)
-            unique.append(m)
-    return unique
-
-
-def _parse_horario_row(row, row_text, materias, re_nrc, re_clave, re_hora, re_dias):
-    cells = [str(c or "").strip() for c in row]
-    materia = {}
-
-    # Buscar NRC (5 dígitos)
-    for c in cells:
-        m = re_nrc.search(c)
-        if m:
-            materia["nrc"] = m.group(1)
-            break
-
-    # Buscar clave
-    for c in cells:
-        m = re_clave.search(c)
-        if m:
-            materia["clave"] = m.group(1)
-            break
-
-    # Nombre: celda más larga que no sea número puro ni hora
-    nombre_candidatos = [c for c in cells
-                         if len(c) > 5 and not re.fullmatch(r'[\d:.\-/ ]+', c)]
-    if nombre_candidatos:
-        materia["nombre"] = max(nombre_candidatos, key=len)
-
-    # Hora
-    m = re_hora.search(row_text)
-    if m:
-        materia["hora_inicio"] = m.group(1)
-        materia["hora_fin"]    = m.group(2)
-
-    # Días
-    m = re_dias.search(row_text)
-    if m:
-        materia["dias"] = m.group(1).upper()
-
-    # Aula: buscar patrón tipo "A101", "B203", "LAB-3"
-    re_aula = re.compile(r'\b([A-Z]{1,3}[-]?\d{2,4})\b')
-    for c in cells:
-        m = re_aula.search(c)
-        if m and m.group(1) != materia.get("nrc","") and m.group(1) != materia.get("clave",""):
-            materia["aula"] = m.group(1)
-            break
-
-    if materia.get("nombre") or materia.get("nrc"):
-        materias.append(materia)
-
-
-def _parse_horario_line(line, materias, re_nrc, re_clave, re_hora, re_dias):
-    materia = {}
-
-    m = re_nrc.search(line)
-    if m:
-        materia["nrc"] = m.group(1)
-
-    m = re_clave.search(line)
-    if m:
-        materia["clave"] = m.group(1)
-
-    m = re_hora.search(line)
-    if m:
-        materia["hora_inicio"] = m.group(1)
-        materia["hora_fin"]    = m.group(2)
-
-    m = re_dias.search(line)
-    if m:
-        materia["dias"] = m.group(1).upper()
-
-    # Si al menos tiene hora o NRC, guardar con la línea como nombre provisional
-    if materia.get("hora_inicio") or materia.get("nrc"):
-        if not materia.get("nombre"):
-            # Quitar los tokens ya capturados para aislar el nombre
-            nombre = re_nrc.sub("", line)
-            nombre = re_clave.sub("", nombre)
-            nombre = re_hora.sub("", nombre)
-            nombre = re_dias.sub("", nombre)
-            nombre = re.sub(r'\s+', ' ', nombre).strip(" |-_")
-            if nombre:
-                materia["nombre"] = nombre
-        materias.append(materia)
+    return extraer_horario_siiau(pdf_path)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -467,8 +342,8 @@ def extraer_horario_pdf():
         tmp_path = tmp.name
 
     try:
-        materias = _extraer_materias_horario_pdf(tmp_path)
-        return jsonify({"ok": True, "materias": materias, "total": len(materias)})
+        alumno_pdf, materias = _extraer_materias_horario_pdf(tmp_path)
+        return jsonify({"ok": True, "materias": materias, "total": len(materias), "alumno": alumno_pdf})
     except RuntimeError as e:
         return jsonify({"ok": False, "error": str(e)}), 500
     except Exception as e:
@@ -496,15 +371,18 @@ def cargar_horario_pdf():
 
     if not file.filename.lower().endswith(".pdf"):
         return jsonify({"error": "Solo se aceptan archivos PDF"}), 400
-    if not codigo:
-        return jsonify({"error": "Falta el parámetro 'codigo' del alumno"}), 400
-
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         file.save(tmp.name)
         tmp_path = tmp.name
 
     try:
-        materias = _extraer_materias_horario_pdf(tmp_path)
+        alumno_pdf, materias = _extraer_materias_horario_pdf(tmp_path)
+        # Usar ciclo del PDF si no se envió en el formulario
+        if not ciclo and alumno_pdf.get("ciclo"):
+            ciclo = alumno_pdf["ciclo"]
+        # Si no se envió código, intentar usar el del PDF
+        if not codigo and alumno_pdf.get("codigo"):
+            codigo = alumno_pdf["codigo"]
     except RuntimeError as e:
         os.unlink(tmp_path)
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -542,12 +420,12 @@ def cargar_horario_pdf():
                 m.get("seccion"),
                 m.get("tipo"),
                 m.get("creditos", 0),
-                m.get("dias"),
+                m.get("dias_str") or "".join(m.get("dias", [])),
                 m.get("hora_inicio"),
                 m.get("hora_fin"),
                 m.get("edificio"),
                 m.get("aula"),
-                m.get("maestro"),
+                m.get("maestro") or m.get("profesor"),
                 ciclo or m.get("ciclo"),
             ))
             insertados += 1
@@ -562,6 +440,7 @@ def cargar_horario_pdf():
         "materias_detectadas": len(materias),
         "materias_guardadas":  insertados,
         "materias":            materias,
+        "alumno_pdf":          alumno_pdf,
     })
 
 
