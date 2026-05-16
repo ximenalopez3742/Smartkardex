@@ -342,6 +342,7 @@ def asignar_equivalencia_horario(codigo):
 
 
 
+@app.route("/api/horario/cargar", methods=["POST"])
 def cargar_horario_pdf():
     """
     Recibe un PDF de horario UDG y extrae las materias.
