@@ -1,572 +1,409 @@
 """
-app.py — Backend Flask para SmartKardex Web (corregido)
-========================================================
-Endpoints reales que el frontend espera:
-
-  POST   /api/kardex/cargar                → sube PDF de kárdex (campo 'pdf')
-  GET    /api/alumnos                      → lista alumnos (devuelve array directo)
-  GET    /api/alumnos/<codigo>/analizar    → análisis académico completo
-  POST   /api/alumnos/<codigo>/perfil      → guarda orientación/SS/PP del alumno
-  POST   /api/alumnos/<codigo>/horario-pdf → extrae horario desde PDF (campo 'pdf')
-  GET    /api/alumnos/<codigo>/horario     → devuelve horario guardado
-  POST   /api/alumnos/<codigo>/horario     → guarda lista de materias del horario
-  DELETE /api/alumnos/<codigo>             → elimina alumno de la BD
-  GET    /api/alumnos/<codigo>/sugerir     → busca materia por clave o nombre
-  POST   /api/plan/importar               → importa CSV del plan de estudios
-  GET    /health                           → healthcheck para Render
+app.py — Smartkardex Web API v2
 """
 
 import os
+import io
+import sys
+import json
 import tempfile
-import sqlite3 as _sqlite3
+import traceback
 from pathlib import Path
-
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
-from database import init_db, normalizar, log
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from database import init_db
 from extractor import KardexExtractor
+from extractor_horario import extraer_horario_pdf
+from motor import MotorInferencia
 from plan import importar_plan_estudios
-from motor_web import MotorInferencia
 
-# ─────────────────────────────────────────────────────────────────
-# Configuración
-# ─────────────────────────────────────────────────────────────────
-DB_PATH    = os.environ.get("KARDEX_DB_PATH", "kardex_udg.db")
-PLAN_CSV   = os.environ.get("PLAN_CSV_PATH", "Plan de Estudios IELC - Hoja 6.csv")
-SECRET_KEY = os.environ.get("SECRET_KEY", os.urandom(24).hex())
-MAX_MB     = 20
+BASE_DIR   = Path(os.path.abspath(__file__)).parent
+STATIC_DIR = BASE_DIR / "static"
 
-app = Flask(__name__, static_folder="static", static_url_path="/static")
-app.config["SECRET_KEY"]         = SECRET_KEY
-app.config["MAX_CONTENT_LENGTH"] = MAX_MB * 1024 * 1024
+# En Render el filesystem del proyecto es efímero.
+# /tmp persiste mientras el proceso esté vivo (no entre deploys,
+# pero sí entre requests de la misma sesión).
+# Usar /tmp evita el "Not Found" al primer arranque.
+_tmp_db = Path("/tmp/kardex_udg.db")
+DB_FILE  = str(_tmp_db)
+CSV_FILE = str(BASE_DIR / "Plan de Estudios IELC - Hoja 6.csv")
+
+app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/static")
 CORS(app)
 
-# ── Servir el frontend ────────────────────────────────────────────
-from flask import send_from_directory as _sfd
-import os as _os
 
-@app.get('/')
-def index():
-    return _sfd(_os.path.join(_os.path.dirname(__file__), 'static'), 'index.html')
+class CaptureOutput:
+    def __enter__(self):
+        self._old = sys.stdout
+        self._buf = io.StringIO()
+        sys.stdout = self._buf
+        return self._buf
+    def __exit__(self, *a):
+        sys.stdout = self._old
 
-# Inicializar BD al arrancar
-init_db(DB_PATH)
 
-# Agregar columnas de perfil si no existen (migración segura)
-def _migrar_db():
-    conn = _sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    columnas = [r[1] for r in cur.execute("PRAGMA table_info(alumnos)").fetchall()]
-    if "orientacion_elegida" not in columnas:
-        cur.execute("ALTER TABLE alumnos ADD COLUMN orientacion_elegida TEXT DEFAULT ''")
-    if "servicio_social" not in columnas:
-        cur.execute("ALTER TABLE alumnos ADD COLUMN servicio_social INTEGER DEFAULT 0")
-    if "practicas_profesionales" not in columnas:
-        cur.execute("ALTER TABLE alumnos ADD COLUMN practicas_profesionales INTEGER DEFAULT 0")
-    conn.commit()
+def clean(obj):
+    if isinstance(obj, set): return list(obj)
+    if isinstance(obj, dict): return {k: clean(v) for k, v in obj.items()}
+    if isinstance(obj, list): return [clean(i) for i in obj]
+    return obj
 
-    # Tabla para el horario del ciclo actual
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS horario_ciclo (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            alumno_id  INTEGER NOT NULL REFERENCES alumnos(id) ON DELETE CASCADE,
-            clave      TEXT NOT NULL,
-            nombre     TEXT NOT NULL,
-            creditos   INTEGER DEFAULT 0,
-            calendario TEXT DEFAULT '',
-            UNIQUE(alumno_id, clave)
-        );
-    """)
-    conn.commit()
+
+def ensure_db():
+    """Garantiza que la BD y el plan estén listos antes de cada request."""
+    import sqlite3
+    conn = init_db(DB_FILE)
+    count = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
     conn.close()
-
-_migrar_db()
-
-# Auto-importar plan si la tabla está vacía
-def _plan_vacio() -> bool:
-    try:
-        conn = _sqlite3.connect(DB_PATH)
-        n = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
-        conn.close()
-        return n == 0
-    except Exception:
-        return True
-
-if _plan_vacio() and Path(PLAN_CSV).exists():
-    log.info("Auto-importando plan desde %s", PLAN_CSV)
-    importar_plan_estudios(db_path=DB_PATH, csv_path=PLAN_CSV)
+    if count == 0 and Path(CSV_FILE).exists():
+        with CaptureOutput():
+            importar_plan_estudios(db_path=DB_FILE, csv_path=CSV_FILE)
 
 
-# ─────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────
-def _err(msg: str, code: int = 400):
-    return jsonify({"ok": False, "error": msg}), code
-
-def _ok(data: dict):
-    return jsonify({"ok": True, **data})
-
-def _get_alumno_id(codigo: str):
-    """Devuelve (alumno_id, conn) o None si no existe."""
-    conn = _sqlite3.connect(DB_PATH)
-    conn.row_factory = _sqlite3.Row
-    row = conn.execute("SELECT id FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
-    if not row:
-        conn.close()
-        return None, None
-    return row["id"], conn
-
-def _guardar_tmp(file_storage, suffix=".pdf") -> str:
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        file_storage.save(tmp.name)
-        return tmp.name
+# ── Inicialización al arranque ──────────────────────────────────
+import logging as _logging
+_log = _logging.getLogger(__name__)
+try:
+    ensure_db()
+    _log.info("BD lista. STATIC_DIR=%s exists=%s index=%s",
+              STATIC_DIR, STATIC_DIR.exists(), (STATIC_DIR / "index.html").exists())
+except Exception as _e:
+    _log.error("ERROR inicializando: %s", _e, exc_info=True)
 
 
-# ─────────────────────────────────────────────────────────────────
-# GET /health
-# ─────────────────────────────────────────────────────────────────
-@app.get("/health")
+# ══════════════════════════════════════════════
+# RUTAS DE API
+# ══════════════════════════════════════════════
+
+@app.route("/api/health")
 def health():
-    return jsonify({"status": "ok"})
+    ensure_db()
+    return jsonify({
+        "status": "ok", "version": "2.0",
+        "static_dir": str(STATIC_DIR),
+        "static_exists": STATIC_DIR.exists(),
+        "index_exists": (STATIC_DIR / "index.html").exists(),
+        "db_file": DB_FILE,
+    })
 
+@app.route("/api/plan/status")
+def plan_status():
+    import sqlite3
+    ensure_db()
+    conn = sqlite3.connect(DB_FILE)
+    count = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
+    conn.close()
+    return jsonify({"cargado": count > 0, "total_materias": count})
 
-# ─────────────────────────────────────────────────────────────────
-# POST /api/kardex/cargar
-# ─────────────────────────────────────────────────────────────────
-@app.post("/api/kardex/cargar")
-def cargar_kardex():
-    """
-    El frontend envía el PDF en el campo 'pdf' (no 'file').
-    Devuelve: {"ok": true, "alumno": {...}}
-    """
-    campo = "pdf" if "pdf" in request.files else "file"
-    if campo not in request.files:
-        return _err("Se requiere el PDF del kárdex (campo 'pdf').")
-
-    archivo = request.files[campo]
-    if not archivo.filename.lower().endswith(".pdf"):
-        return _err("Solo se aceptan archivos PDF.")
-
-    tmp_path = _guardar_tmp(archivo)
+@app.route("/api/plan/importar", methods=["POST"])
+def importar_plan():
     try:
-        extractor = KardexExtractor(db_path=DB_PATH)
-        resultado = extractor.cargar_pdf(tmp_path)
-        if not resultado:
-            return _err("No se pudo extraer información del PDF. "
-                        "Verifica que sea un kárdex UDG válido.")
-        # El frontend espera la clave "alumno" con los datos del alumno
-        alumno = resultado.get("alumno", resultado)
-        return _ok({"alumno": alumno})
+        with CaptureOutput() as buf:
+            importar_plan_estudios(db_path=DB_FILE, csv_path=CSV_FILE)
+        return jsonify({"ok": True, "mensaje": buf.getvalue()})
     except Exception as e:
-        log.exception("Error al cargar kárdex")
-        return _err(f"Error interno: {str(e)}", 500)
-    finally:
-        os.unlink(tmp_path)
+        return jsonify({"ok": False, "error": str(e)}), 500
 
-
-# ─────────────────────────────────────────────────────────────────
-# GET /api/alumnos
-# ─────────────────────────────────────────────────────────────────
-@app.get("/api/alumnos")
+@app.route("/api/alumnos")
 def listar_alumnos():
-    """
-    El frontend espera un array directo (no un objeto con clave 'alumnos').
-    """
-    try:
-        conn = _sqlite3.connect(DB_PATH)
-        conn.row_factory = _sqlite3.Row
-        rows = conn.execute("""
-            SELECT codigo, nombre, carrera, ultimo_ciclo,
-                   creditos_adquiridos, creditos_requeridos, promedio
-            FROM alumnos ORDER BY nombre
-        """).fetchall()
+    import sqlite3
+    ensure_db()
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("""
+        SELECT codigo, nombre, carrera, creditos_adquiridos,
+               creditos_requeridos, promedio, ultimo_ciclo, situacion,
+               orientacion_elegida, servicio_social, practicas_profesionales
+        FROM alumnos ORDER BY nombre
+    """).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/alumnos/<codigo>", methods=["GET"])
+def consultar_alumno(codigo):
+    import sqlite3
+    ensure_db()
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    alumno = conn.execute("SELECT * FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
+    if not alumno:
         conn.close()
-        return jsonify([dict(r) for r in rows])
+        return jsonify({"error": "SESSION_EXPIRED"}), 404
+    alumno_dict = dict(alumno)
+    alumno_id = alumno_dict["id"]
+    materias = conn.execute("""
+        SELECT clave, nombre, calificacion, estatus, creditos,
+               tipo, calendario, fecha_eval
+        FROM materias WHERE alumno_id=? ORDER BY calendario, nombre
+    """, (alumno_id,)).fetchall()
+    creditos_area = conn.execute("""
+        SELECT area, requeridos, adquiridos, faltantes
+        FROM creditos_por_area WHERE alumno_id=? ORDER BY area
+    """, (alumno_id,)).fetchall()
+    horario = conn.execute("""
+        SELECT clave, nombre, creditos, calendario
+        FROM horario WHERE alumno_id=?
+    """, (alumno_id,)).fetchall()
+    conn.close()
+    return jsonify({
+        "alumno": alumno_dict,
+        "materias": [dict(m) for m in materias],
+        "creditos_area": [dict(c) for c in creditos_area],
+        "horario": [dict(h) for h in horario],
+    })
+
+@app.route("/api/alumnos/<codigo>", methods=["DELETE"])
+def eliminar_alumno(codigo):
+    import sqlite3
+    ensure_db()
+    conn = sqlite3.connect(DB_FILE)
+    conn.execute("PRAGMA foreign_keys = ON")
+    cur = conn.cursor()
+    cur.execute("DELETE FROM alumnos WHERE codigo=?", (codigo,))
+    deleted = cur.rowcount
+    conn.commit(); conn.close()
+    if deleted == 0:
+        return jsonify({"error": "Alumno no encontrado"}), 404
+    return jsonify({"ok": True})
+
+@app.route("/api/alumnos/<codigo>/analizar", methods=["GET", "POST"])
+def analizar_alumno(codigo):
+    try:
+        ensure_db()
+        motor = MotorInferencia(db_path=DB_FILE)
+        orientacion = None
+        servicio_social = False
+        practicas = False
+        if request.method == "POST":
+            data = request.get_json(silent=True) or {}
+            orientacion = data.get("orientacion")
+            servicio_social = bool(data.get("servicio_social", False))
+            practicas = bool(data.get("practicas", False))
+        else:
+            orientacion = request.args.get("orientacion")
+            servicio_social = request.args.get("servicio_social", "").lower() == "true"
+            practicas = request.args.get("practicas", "").lower() == "true"
+        with CaptureOutput():
+            resultado = motor.analizar(
+                codigo, orientacion=orientacion,
+                servicio_social=servicio_social, practicas=practicas,
+            )
+        if resultado is None:
+            return jsonify({"error": "SESSION_EXPIRED"}), 404
+        return jsonify(clean(resultado))
     except Exception as e:
-        return jsonify([])  # array vacío en caso de error, no rompe el init
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
-
-# ─────────────────────────────────────────────────────────────────
-# GET /api/alumnos/<codigo>/analizar
-# ─────────────────────────────────────────────────────────────────
-@app.get("/api/alumnos/<codigo>/analizar")
-def analizar(codigo: str):
-    """
-    El frontend hace GET (no POST) con el código en la URL.
-    Lee el perfil del alumno desde la BD para pasar SS/PP/orientación.
-    """
+@app.route("/api/alumnos/<codigo>/horario", methods=["POST"])
+def guardar_horario(codigo):
     try:
-        conn = _sqlite3.connect(DB_PATH)
-        conn.row_factory = _sqlite3.Row
-        al_row = conn.execute(
-            "SELECT id, orientacion_elegida, servicio_social, practicas_profesionales "
-            "FROM alumnos WHERE codigo=?", (codigo,)
-        ).fetchone()
-        conn.close()
-
-        if not al_row:
-            return _err(f"El alumno {codigo} no está en la base de datos.", 404)
-
-        # Leer horario guardado para excluirlo del análisis
-        conn2 = _sqlite3.connect(DB_PATH)
-        conn2.row_factory = _sqlite3.Row
-        hrows = conn2.execute(
-            "SELECT clave, nombre FROM horario_ciclo WHERE alumno_id=?",
-            (al_row["id"],)
-        ).fetchall()
-        conn2.close()
-
-        horario_claves  = {r["clave"].upper() for r in hrows}
-        horario_nombres = {normalizar(r["nombre"]) for r in hrows}
-
-        motor = MotorInferencia(db_path=DB_PATH)
-        resultado = motor.analizar(
-            codigo_alumno   = codigo,
-            horario_claves  = horario_claves,
-            horario_nombres = horario_nombres,
-            servicio_social = bool(al_row["servicio_social"]),
-            practicas_prof  = bool(al_row["practicas_profesionales"]),
-            orientacion     = (al_row["orientacion_elegida"] or "").strip().upper(),
-        )
-        if resultado is None or "error" in resultado:
-            return _err((resultado or {}).get("error", "Error desconocido."))
-
+        ensure_db()
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"ok": False, "error": "Body JSON requerido"}), 400
+        calendario = data.get("calendario", "")
+        materias = data.get("materias", [])
+        if not isinstance(materias, list):
+            return jsonify({"ok": False, "error": "'materias' debe ser una lista"}), 400
+        motor = MotorInferencia(db_path=DB_FILE)
+        resultado = motor.guardar_horario(codigo, materias, calendario)
         return jsonify(resultado)
     except Exception as e:
-        log.exception("Error en análisis")
-        return _err(f"Error interno: {str(e)}", 500)
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
 
-
-# ─────────────────────────────────────────────────────────────────
-# POST /api/alumnos/<codigo>/perfil
-# ─────────────────────────────────────────────────────────────────
-@app.post("/api/alumnos/<codigo>/perfil")
-def guardar_perfil(codigo: str):
-    """
-    Guarda orientación elegida, SS y PP en la tabla alumnos.
-    Body JSON: {orientacion, servicio_social, practicas}
-    """
-    data = request.get_json(silent=True) or {}
-    try:
-        conn = _sqlite3.connect(DB_PATH)
-        row = conn.execute("SELECT id FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
-        if not row:
-            conn.close()
-            return _err(f"Alumno {codigo} no encontrado.", 404)
-
-        conn.execute("""
-            UPDATE alumnos
-               SET orientacion_elegida     = ?,
-                   servicio_social         = ?,
-                   practicas_profesionales = ?
-             WHERE codigo = ?
-        """, (
-            (data.get("orientacion") or "").strip().upper(),
-            int(bool(data.get("servicio_social", False))),
-            int(bool(data.get("practicas", False))),
-            codigo,
-        ))
-        conn.commit()
+@app.route("/api/alumnos/<codigo>/horario", methods=["GET"])
+def obtener_horario(codigo):
+    import sqlite3
+    ensure_db()
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    alumno = conn.execute("SELECT id FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
+    if not alumno:
         conn.close()
-        return _ok({"mensaje": "Perfil actualizado."})
-    except Exception as e:
-        log.exception("Error al guardar perfil")
-        return _err(f"Error interno: {str(e)}", 500)
-
-
-# ─────────────────────────────────────────────────────────────────
-# POST /api/alumnos/<codigo>/horario-pdf
-# ─────────────────────────────────────────────────────────────────
-@app.post("/api/alumnos/<codigo>/horario-pdf")
-def cargar_horario_pdf(codigo: str):
-    """
-    Extrae materias del PDF de horario y las guarda en horario_ciclo.
-    El frontend envía el PDF en el campo 'pdf'.
-    """
-    campo = "pdf" if "pdf" in request.files else "file"
-    if campo not in request.files:
-        return _err("Se requiere el PDF del horario (campo 'pdf').")
-
-    archivo = request.files[campo]
-    if not archivo.filename.lower().endswith(".pdf"):
-        return _err("Solo se aceptan archivos PDF.")
-
-    alumno_id, conn = _get_alumno_id(codigo)
-    if alumno_id is None:
-        return _err(f"Alumno {codigo} no encontrado.", 404)
+        return jsonify({"error": "SESSION_EXPIRED"}), 404
+    horario = conn.execute("""
+        SELECT clave, nombre, creditos, calendario FROM horario
+        WHERE alumno_id=? ORDER BY calendario, nombre
+    """, (alumno["id"],)).fetchall()
     conn.close()
+    return jsonify([dict(h) for h in horario])
 
-    tmp_path = _guardar_tmp(archivo)
+@app.route("/api/alumnos/<codigo>/sugerir", methods=["GET", "POST"])
+def sugerir_materia(codigo):
     try:
-        from horario_extractor import extraer_horario
-        datos = extraer_horario(tmp_path)
-
-        if not datos or not datos.get("materias"):
-            return _err("No se pudieron extraer materias del horario PDF.")
-
-        materias = datos["materias"]
-        conn2 = _sqlite3.connect(DB_PATH)
-        conn2.execute("DELETE FROM horario_ciclo WHERE alumno_id=?", (alumno_id,))
-        for m in materias:
-            conn2.execute("""
-                INSERT OR IGNORE INTO horario_ciclo (alumno_id, clave, nombre, creditos, calendario)
-                VALUES (?, ?, ?, ?, ?)
-            """, (
-                alumno_id,
-                m["clave"].upper(),
-                m["nombre"],
-                m.get("creditos", 0),
-                datos.get("ciclo", ""),
-            ))
-        conn2.commit()
-        conn2.close()
-
-        return _ok({
-            "materias_en_horario": len(materias),
-            "materias": materias,
-            "ciclo": datos.get("ciclo", ""),
-        })
-    except Exception as e:
-        log.exception("Error al procesar horario PDF")
-        return _err(f"Error interno: {str(e)}", 500)
-    finally:
-        os.unlink(tmp_path)
-
-
-# ─────────────────────────────────────────────────────────────────
-# GET /api/alumnos/<codigo>/horario
-# ─────────────────────────────────────────────────────────────────
-@app.get("/api/alumnos/<codigo>/horario")
-def get_horario(codigo: str):
-    """
-    Devuelve el horario guardado del alumno.
-    El frontend espera un array directo (no un objeto).
-    """
-    alumno_id, conn = _get_alumno_id(codigo)
-    if alumno_id is None:
-        return jsonify([])
-    conn.close()
-
-    try:
-        conn2 = _sqlite3.connect(DB_PATH)
-        conn2.row_factory = _sqlite3.Row
-        rows = conn2.execute(
-            "SELECT clave, nombre, creditos, calendario FROM horario_ciclo WHERE alumno_id=?",
-            (alumno_id,)
-        ).fetchall()
-        conn2.close()
-        return jsonify([dict(r) for r in rows])
-    except Exception as e:
-        return jsonify([])
-
-
-# ─────────────────────────────────────────────────────────────────
-# POST /api/alumnos/<codigo>/horario
-# ─────────────────────────────────────────────────────────────────
-@app.post("/api/alumnos/<codigo>/horario")
-def guardar_horario(codigo: str):
-    """
-    Guarda la lista de materias del horario ingresada manualmente.
-    Body JSON: {calendario: "2026A", materias: [{clave, nombre, creditos}, ...]}
-    """
-    data = request.get_json(silent=True) or {}
-    materias   = data.get("materias", [])
-    calendario = (data.get("calendario") or "").strip()
-
-    alumno_id, conn = _get_alumno_id(codigo)
-    if alumno_id is None:
-        return _err(f"Alumno {codigo} no encontrado.", 404)
-    conn.close()
-
-    if not materias:
-        return _err("No se enviaron materias.")
-
-    try:
-        conn2 = _sqlite3.connect(DB_PATH)
-        conn2.execute("DELETE FROM horario_ciclo WHERE alumno_id=?", (alumno_id,))
-        guardadas = 0
-        for m in materias:
-            clave = str(m.get("clave", "")).strip().upper()
-            nombre = str(m.get("nombre", "")).strip()
-            if not clave or not nombre:
-                continue
-            conn2.execute("""
-                INSERT OR REPLACE INTO horario_ciclo (alumno_id, clave, nombre, creditos, calendario)
-                VALUES (?, ?, ?, ?, ?)
-            """, (alumno_id, clave, nombre, int(m.get("creditos", 0)), calendario))
-            guardadas += 1
-        conn2.commit()
-        conn2.close()
-        return _ok({"guardadas": guardadas})
-    except Exception as e:
-        log.exception("Error al guardar horario")
-        return _err(f"Error interno: {str(e)}", 500)
-
-
-# ─────────────────────────────────────────────────────────────────
-# DELETE /api/alumnos/<codigo>
-# ─────────────────────────────────────────────────────────────────
-@app.delete("/api/alumnos/<codigo>")
-def eliminar_alumno(codigo: str):
-    """Elimina al alumno y todos sus datos (CASCADE en la BD)."""
-    alumno_id, conn = _get_alumno_id(codigo)
-    if alumno_id is None:
-        return _err(f"Alumno {codigo} no encontrado.", 404)
-    conn.close()
-
-    try:
-        conn2 = _sqlite3.connect(DB_PATH)
-        conn2.execute("PRAGMA foreign_keys = ON")
-        conn2.execute("DELETE FROM alumnos WHERE codigo=?", (codigo,))
-        conn2.commit()
-        conn2.close()
-        return _ok({"mensaje": f"Alumno {codigo} eliminado."})
-    except Exception as e:
-        log.exception("Error al eliminar alumno")
-        return _err(f"Error interno: {str(e)}", 500)
-
-
-# ─────────────────────────────────────────────────────────────────
-# GET /api/alumnos/<codigo>/sugerir?q=<query>&area=<area>
-# ─────────────────────────────────────────────────────────────────
-@app.get("/api/alumnos/<codigo>/sugerir")
-def sugerir_materia(codigo: str):
-    """
-    Busca una materia en el plan por clave exacta o similitud de nombre.
-    Query params: q (texto), area (opcional, filtra por área).
-    """
-    q    = (request.args.get("q") or "").strip()
-    area = (request.args.get("area") or "").strip()
-
-    if not q:
-        return jsonify({"encontrado": False, "filtro": "ninguno", "mensaje": "Ingresa una clave o nombre."})
-
-    try:
-        from difflib import SequenceMatcher
-        conn = _sqlite3.connect(DB_PATH)
-        conn.row_factory = _sqlite3.Row
-        plan = [dict(r) for r in conn.execute(
-            "SELECT clave, materia, area_cod, area, orientacion, creditos FROM plan_estudios"
-        ).fetchall()]
-        conn.close()
-
-        q_upper = q.upper()
-        q_norm  = normalizar(q)
-
-        # 1. Búsqueda por clave exacta
-        for m in plan:
-            if m["clave"].upper() == q_upper:
-                return jsonify({"encontrado": True, "filtro": "clave", "materia": m})
-
-        # 2. Búsqueda por similitud de nombre
-        def sim(a, b):
-            return SequenceMatcher(None, a, b).ratio()
-
-        mejor = max(plan, key=lambda m: sim(q_norm, normalizar(m["materia"])))
-        score = sim(q_norm, normalizar(mejor["materia"]))
-        if score >= 0.55:
-            return jsonify({"encontrado": True, "filtro": "nombre", "materia": mejor, "similitud": score})
-
-        # 3. Sin coincidencia — devolver áreas disponibles para selector
-        areas = sorted({m["area"] for m in plan if m["area"]})
-        resp  = {"encontrado": False, "filtro": "ninguno",
-                 "mensaje": f"No se encontró '{q}' en el plan de estudios.",
-                 "areas": areas}
-
-        # Si se pasó área, devolver materias de esa área
-        if area:
-            lista = [m for m in plan if m["area"] == area or m["area_cod"] == area]
-            resp["filtro"]     = "area"
-            resp["lista_area"] = lista
-            resp["mensaje"]    = f"{len(lista)} materia(s) en el área '{area}'."
-
-        return jsonify(resp)
-    except Exception as e:
-        log.exception("Error en sugerir")
-        return _err(f"Error interno: {str(e)}", 500)
-
-
-# ─────────────────────────────────────────────────────────────────
-# POST /api/plan/importar
-# ─────────────────────────────────────────────────────────────────
-@app.post("/api/plan/importar")
-def importar_plan():
-    """
-    Importa el plan desde CSV subido (campo 'file') o desde disco.
-    """
-    tmp_path = None
-    try:
-        if "file" in request.files:
-            archivo = request.files["file"]
-            tmp_path = _guardar_tmp(archivo, suffix=".csv")
-            csv_to_use = tmp_path
-        elif Path(PLAN_CSV).exists():
-            csv_to_use = PLAN_CSV
+        ensure_db()
+        if request.method == "POST":
+            data = request.get_json(silent=True) or {}
+            query = data.get("q", "")
+            area_manual = data.get("area", None)
         else:
-            return _err(f"No se encontró el CSV del plan ('{PLAN_CSV}'). Súbelo manualmente.")
-
-        importar_plan_estudios(db_path=DB_PATH, csv_path=csv_to_use)
-
-        conn = _sqlite3.connect(DB_PATH)
-        total = conn.execute("SELECT COUNT(*) FROM plan_estudios").fetchone()[0]
-        conn.close()
-        return _ok({"mensaje": f"Plan importado. {total} materias en BD."})
+            query = request.args.get("q", "")
+            area_manual = request.args.get("area", None)
+        if not query:
+            return jsonify({"error": "Parámetro 'q' requerido"}), 400
+        motor = MotorInferencia(db_path=DB_FILE)
+        resultado = motor.sugerir_materia(codigo, query, area_manual)
+        return jsonify(clean(resultado))
     except Exception as e:
-        log.exception("Error al importar plan")
-        return _err(f"Error interno: {str(e)}", 500)
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
-
-# ─────────────────────────────────────────────────────────────────
-# Mantener compatibilidad con endpoints anteriores (por si acaso)
-# ─────────────────────────────────────────────────────────────────
-@app.post("/api/cargar-kardex")
-def cargar_kardex_legacy():
-    return cargar_kardex()
-
-@app.post("/api/cargar-horario")
-def cargar_horario_legacy():
-    """Versión legacy: no tiene código de alumno, solo extrae y devuelve."""
-    campo = "pdf" if "pdf" in request.files else "file"
-    if campo not in request.files:
-        return _err("Se requiere el PDF del horario.")
-    archivo = request.files[campo]
-    tmp_path = _guardar_tmp(archivo)
+@app.route("/api/alumnos/<codigo>/perfil", methods=["POST"])
+def actualizar_perfil(codigo):
     try:
-        from horario_extractor import extraer_horario
-        datos = extraer_horario(tmp_path)
-        if not datos:
-            return _err("No se pudieron extraer materias del horario.")
-        return _ok({"horario": datos})
+        import sqlite3
+        ensure_db()
+        data = request.get_json(silent=True) or {}
+        conn = sqlite3.connect(DB_FILE)
+        alumno = conn.execute("SELECT id FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
+        if not alumno:
+            conn.close()
+            return jsonify({"error": "SESSION_EXPIRED"}), 404
+        alumno_id = alumno[0]
+        fields, vals = [], []
+        if "orientacion" in data:
+            fields.append("orientacion_elegida=?"); vals.append(data["orientacion"])
+        if "servicio_social" in data:
+            fields.append("servicio_social=?"); vals.append(1 if data["servicio_social"] else 0)
+        if "practicas" in data:
+            fields.append("practicas_profesionales=?"); vals.append(1 if data["practicas"] else 0)
+        if fields:
+            conn.execute(f"UPDATE alumnos SET {', '.join(fields)} WHERE id=?", vals + [alumno_id])
+            conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
     except Exception as e:
-        return _err(f"Error interno: {str(e)}", 500)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/api/kardex/cargar", methods=["POST"])
+def cargar_kardex():
+    ensure_db()
+    if "pdf" not in request.files:
+        return jsonify({"error": "No se envió ningún archivo PDF"}), 400
+    file = request.files["pdf"]
+    if not file.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "Solo se aceptan archivos PDF"}), 400
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        file.save(tmp.name)
+        tmp_path = tmp.name
+    try:
+        extractor = KardexExtractor(db_path=DB_FILE)
+        with CaptureOutput() as buf:
+            extractor.cargar_pdf(tmp_path)
+        import sqlite3
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+        alumno = conn.execute("""
+            SELECT codigo, nombre, carrera, creditos_adquiridos,
+                   creditos_requeridos, promedio, ultimo_ciclo,
+                   orientacion_elegida, servicio_social, practicas_profesionales
+            FROM alumnos ORDER BY fecha_carga DESC, id DESC LIMIT 1
+        """).fetchone()
+        conn.close()
+        return jsonify({"ok": True, "log": buf.getvalue(),
+                        "alumno": dict(alumno) if alumno else None})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
     finally:
         os.unlink(tmp_path)
 
 
-# ─────────────────────────────────────────────────────────────────
-# Manejo de errores globales
-# ─────────────────────────────────────────────────────────────────
-@app.errorhandler(413)
-def too_large(e):
-    return _err(f"El archivo excede el límite de {MAX_MB} MB.", 413)
+@app.route("/api/horario/cargar", methods=["POST"])
+def cargar_horario_pdf():
+    """
+    Recibe un PDF de horario UDG y extrae las materias.
+    Si se incluye codigo_alumno en el form, guarda directo en BD.
+    Body multipart: pdf=<archivo>, codigo=<opcional>, calendario=<opcional>
+    """
+    ensure_db()
+    if "pdf" not in request.files:
+        return jsonify({"ok": False, "error": "No se envió ningún archivo PDF"}), 400
+    file = request.files["pdf"]
+    if not file.filename.lower().endswith(".pdf"):
+        return jsonify({"ok": False, "error": "Solo se aceptan archivos PDF"}), 400
 
-@app.errorhandler(404)
-def not_found(e):
-    return _err("Endpoint no encontrado.", 404)
+    codigo_param    = request.form.get("codigo", "").strip()
+    calendario_param = request.form.get("calendario", "").strip()
 
-@app.errorhandler(500)
-def server_error(e):
-    return _err("Error interno del servidor.", 500)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        file.save(tmp.name)
+        tmp_path = tmp.name
+
+    try:
+        datos = extraer_horario_pdf(tmp_path)
+        materias   = datos.get("materias", [])
+        calendario = calendario_param or datos.get("calendario", "") or "SIN-CALENDARIO"
+        codigo     = codigo_param     or datos.get("codigo", "")
+
+        if not materias:
+            return jsonify({
+                "ok": False,
+                "error": "No se encontraron materias en el PDF. "
+                         "Verifica que sea el PDF de horario de SIIAUESCOLAR."
+            }), 422
+
+        resultado = {
+            "ok": True,
+            "codigo_detectado": datos.get("codigo", ""),
+            "nombre_detectado": datos.get("nombre", ""),
+            "calendario": calendario,
+            "materias": materias,
+            "total": len(materias),
+        }
+
+        # Si tenemos el código del alumno, guardar en BD
+        if codigo:
+            import sqlite3
+            conn = sqlite3.connect(DB_FILE)
+            conn.row_factory = sqlite3.Row
+            alumno = conn.execute("SELECT id FROM alumnos WHERE codigo=?", (codigo,)).fetchone()
+            conn.close()
+
+            if alumno:
+                motor = MotorInferencia(db_path=DB_FILE)
+                res_horario = motor.guardar_horario(codigo, materias, calendario)
+                resultado["guardado"] = res_horario.get("ok", False)
+            else:
+                resultado["guardado"] = False
+                resultado["aviso"] = (
+                    "Materias extraídas correctamente, pero el alumno no está en la BD. "
+                    "Sube primero el kárdex."
+                )
+
+        return jsonify(resultado)
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        os.unlink(tmp_path)
 
 
-# ─────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════
+# FRONTEND — AL FINAL para no interceptar /api/
+# ══════════════════════════════════════════════
+
+@app.route("/")
+def index():
+    return send_from_directory(str(STATIC_DIR), "index.html")
+
+@app.route("/<path:path>")
+def catch_all(path):
+    if path.startswith("api/"):
+        return jsonify({"error": "Not found"}), 404
+    target = STATIC_DIR / path
+    if target.exists() and target.is_file():
+        return send_from_directory(str(STATIC_DIR), path)
+    return send_from_directory(str(STATIC_DIR), "index.html")
+
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 5000))
+    print(f"🚀 Smartkardex v2 corriendo en http://0.0.0.0:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)
