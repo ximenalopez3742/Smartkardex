@@ -152,9 +152,7 @@ def _parse_fila_materia(fila: list, calendario: str) -> list[dict]:
         if "SD" in cal_upper or "SIN DERECHO" in cal_upper or "NP" in cal_upper:
             estatus, calificacion = "REPROBADA", None
         elif calificacion is None:
-            # NC=0 con calificación vacía dentro de una fila multiintento
-            # es un SD/sin derecho, no un intento pendiente real.
-            estatus = "REPROBADA" if creditos == 0 else "PENDIENTE"
+            estatus = "PENDIENTE"
         elif calificacion >= CALIFICACION_MINIMA:
             estatus = "APROBADA"
         else:
@@ -259,58 +257,11 @@ def _extraer_cabecera(text: str) -> dict:
     return alumno
 
 
-
-def _es_fila_huerfana(fila: list) -> bool:
-    """
-    Detecta una fila de continuación tras un salto de página del PDF.
-    Ocurre cuando pdfplumber parte una materia entre páginas y la segunda
-    mitad llega con NRC y Clave vacíos pero sí tiene calificación/tipo/fecha.
-    """
-    if not fila or len(fila) < 4:
-        return False
-    nrc   = _limpiar(str(fila[0]) if fila[0] else "")
-    clave = _limpiar(str(fila[1]) if fila[1] else "")
-    cal   = _limpiar(str(fila[3]) if fila[3] else "")
-    tipo  = _limpiar(str(fila[4]) if len(fila) > 4 and fila[4] else "")
-    # Sin NRC ni Clave, pero con calificación o tipo → fila huérfana
-    return (not nrc and not clave and (bool(cal) or bool(tipo)))
-
-
-def _fusionar_filas_huerfanas(filas: list) -> list:
-    """
-    Combina filas huérfanas (continuación de página) con su fila anfitriona.
-    La fila huérfana aporta calificación/tipo/NC/HC/fecha adicionales que
-    se anexan con \n a las celdas de la última fila válida.
-    """
-    resultado = []
-    for fila in filas:
-        if _es_fila_huerfana(fila) and resultado:
-            # Fusionar con la última fila válida añadiendo \n en cada celda
-            base = list(resultado[-1])
-            for idx in range(3, min(len(fila), len(base))):
-                val_nuevo = _limpiar(str(fila[idx]) if fila[idx] else "")
-                if val_nuevo:
-                    val_base = str(base[idx]) if base[idx] else ""
-                    base[idx] = (val_base + "\n" + val_nuevo) if val_base else val_nuevo
-            resultado[-1] = base
-            log.info("Fila huérfana fusionada con: %s", base[1])
-        else:
-            resultado.append(fila)
-    return resultado
-
-
 def extraer_pdf(pdf_path: str) -> dict:
     """Lee el PDF y retorna los datos estructurados del alumno y sus materias."""
     log.info("Leyendo: %s", pdf_path)
     alumno, materias, areas = {}, [], []
     full_text, calendario_actual = "", "DESCONOCIDO"
-
-    # ── Paso 1: leer todas las páginas y recopilar filas de materias ──
-    # Se acumulan todas las filas antes de procesar para poder detectar
-    # y fusionar filas partidas entre páginas (continuación/fila huérfana).
-    # Se preservan filas de calendario como marcadores especiales, pero se
-    # omiten encabezados de columna para que la fusión no se enganche en ellos.
-    filas_crudas: list = []
 
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
@@ -325,22 +276,17 @@ def extraer_pdf(pdf_path: str) -> dict:
                     continue
 
                 primera_celda = (_limpiar(tabla[0][0]) if tabla[0] else "").upper()
+
                 if "RESUMEN" in primera_celda:
                     areas = _parse_areas(tabla)
                     continue
 
-                for fila in tabla:
-                    # Saltar encabezados de columna (NRC / Clave / ...)
-                    if _es_fila_encabezado(fila):
-                        continue
-                    filas_crudas.append(fila)
+                cal_header = _es_fila_calendario(tabla[0])
+                if cal_header:
+                    calendario_actual = cal_header
 
-    # ── Paso 2: fusionar filas huérfanas (continuaciones de página) ──
-    filas_fusionadas = _fusionar_filas_huerfanas(filas_crudas)
-
-    # ── Paso 3: procesar la lista única de filas ya fusionadas ────────
-    nuevas, calendario_actual = _procesar_tabla_materias(filas_fusionadas, calendario_actual)
-    materias.extend(nuevas)
+                nuevas, calendario_actual = _procesar_tabla_materias(tabla, calendario_actual)
+                materias.extend(nuevas)
 
     # Créditos desde texto si no se encontraron en la cabecera
     if not alumno.get("creditos_adquiridos"):
@@ -372,45 +318,25 @@ def extraer_pdf(pdf_path: str) -> dict:
 
 def _generar_alertas(cur, alumno_id: int, al: dict, materias: list, fecha: str):
     """Genera alertas: Art. 33, Servicio Social, Prácticas, créditos cero."""
-    from database import normalizar
-    from difflib import SequenceMatcher
-
-    def _sim(a, b): return SequenceMatcher(None, a, b).ratio()
-    UMBRAL_ALERTA = 0.82
-
     creditos_adq = al.get("creditos_adquiridos") or 0
     creditos_req = al.get("creditos_requeridos") or 0
 
-    # Construir sets de aprobadas (por clave Y por nombre normalizado)
+    # Agrupar: clave → {calendarios donde reprobó} y set de aprobadas
     rep_calendarios: dict[str, set] = {}
     aprobadas_clave: set[str]       = set()
-    nombres_aprobados: set[str]     = set()
 
     for m in materias:
         clave = m["clave"]
         if m["estatus"] == "APROBADA":
             aprobadas_clave.add(clave)
-            n = normalizar(m.get("nombre", ""))
-            if n:
-                nombres_aprobados.add(n)
         elif m["estatus"] == "REPROBADA":
             rep_calendarios.setdefault(clave, set()).add(m["calendario"])
-
-    def _ya_aprobada_por_nombre(clave: str) -> bool:
-        """True si la clave tiene un nombre igual o similar a una materia aprobada."""
-        if clave in aprobadas_clave:
-            return True
-        nombre = next((m["nombre"] for m in materias if m["clave"] == clave), "")
-        n = normalizar(nombre)
-        if n and n in nombres_aprobados:
-            return True
-        return any(n and _sim(n, apn) >= UMBRAL_ALERTA for apn in nombres_aprobados)
 
     alertas = []
 
     # Art. 33 — reprobada en 2+ periodos distintos sin aprobar
     for clave, calendarios in rep_calendarios.items():
-        if _ya_aprobada_por_nombre(clave):
+        if clave in aprobadas_clave:
             continue
         if len(calendarios) >= MAX_REPROBACIONES:
             nombre = next((m["nombre"] for m in materias if m["clave"] == clave), clave)
@@ -426,9 +352,7 @@ def _generar_alertas(cur, alumno_id: int, al: dict, materias: list, fecha: str):
         if m["estatus"] == "REPROBADA" and m["calificacion"] is None:
             sd_count[m["clave"]] = sd_count.get(m["clave"], 0) + 1
     for clave, n_sd in sd_count.items():
-        if _ya_aprobada_por_nombre(clave):
-            continue
-        if n_sd >= 2:
+        if clave not in aprobadas_clave and n_sd >= 2:
             nombre = next((m["nombre"] for m in materias if m["clave"] == clave), clave)
             alertas.append(("ARTICULO",
                 f"{nombre} ({clave}) acumula {n_sd} evaluaciones sin derecho (SD). "
@@ -659,15 +583,7 @@ class KardexExtractor:
         for i in intentos:
             por_clave[i["clave"]].append(i)
 
-        from database import normalizar
-        from difflib import SequenceMatcher
-
-        def _sim(a, b):
-            return SequenceMatcher(None, a, b).ratio()
-
-        # Pasada A: registrar todas las materias APROBADAS y sus nombres
-        nombres_aprobados: set = set()
-        aprobadas = []
+        aprobadas, reprobadas = [], []
         for clave, lista in por_clave.items():
             if any(i["estatus"] == "APROBADA" for i in lista):
                 mejor = max(
@@ -675,32 +591,9 @@ class KardexExtractor:
                     key=lambda x: (x["creditos"], x["fecha_eval"] or "")
                 )
                 aprobadas.append(mejor)
-                n = normalizar(mejor.get("nombre", ""))
-                if n:
-                    nombres_aprobados.add(n)
-
-        # Pasada B: reprobadas — descartar si el nombre ya fue aprobado
-        # con otra clave (misma materia renombrada/reclaveada entre ciclos)
-        UMBRAL_RES = 0.82
-        reprobadas = []
-        for clave, lista in por_clave.items():
-            if any(i["estatus"] == "APROBADA" for i in lista):
-                continue
-
-            ultimo = max(lista, key=lambda x: x["fecha_eval"] or "")
-            nombre_norm = normalizar(ultimo.get("nombre", ""))
-
-            if nombre_norm and nombre_norm in nombres_aprobados:
-                continue
-
-            cubierto = any(
-                nombre_norm and _sim(nombre_norm, n) >= UMBRAL_RES
-                for n in nombres_aprobados
-            )
-            if cubierto:
-                continue
-
-            reprobadas.append({**ultimo, "num_intentos": len(lista)})
+            else:
+                ultimo = max(lista, key=lambda x: x["fecha_eval"] or "")
+                reprobadas.append({**ultimo, "num_intentos": len(lista)})
 
         return {
             "alumno": alumno,
