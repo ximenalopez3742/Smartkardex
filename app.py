@@ -1,5 +1,4 @@
 """
-"""
 app.py — Backend Flask para SmartKardex Web (corregido)
 ========================================================
 Endpoints reales que el frontend espera:
