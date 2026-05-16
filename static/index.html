@@ -1059,6 +1059,8 @@ function renderDashboard(d,calActual){
     <span>📅 ${al.ultimo_ciclo||'—'}</span>
     <span>${situacionBadge(al.situacion)}</span>
     ${al.orientacion_elegida?`<span>🧭 ${oriNombre(al.orientacion_elegida)}</span>`:''}
+    ${al.servicio_social?'<span class="badge badge-green">✅ Servicio Social</span>':''}
+    ${al.practicas_profesionales?'<span class="badge badge-green">✅ Prácticas Prof.</span>':''}
   `;
 
   const credAdq=d.creditos_propios||al.creditos_adquiridos||0;
@@ -1157,7 +1159,7 @@ function renderAlertas(alertas){
   const sec=document.getElementById('sec-alertas');
   if(sec)sec.style.display=alertas.length>0?'':'none';
   if(!alertas.length){el.innerHTML='';return}
-  const tc={ARTICULO_33_CONSECUTIVO:'alert-red',ARTICULO_33:'alert-red',DISCREPANCIA_CREDITOS:'alert-yellow',DISCREPANCIA_AREA:'alert-yellow',RECORDATORIO_REPROBADA:'alert-blue',PROMEDIO_BAJO:'alert-red',PRACTICAS:'alert-blue',PRACTICAS_COMPLETADAS:'alert-green',SERVICIO_SOCIAL:'alert-green',SERVICIO_COMPLETADO:'alert-green',SERVICIO_PENDIENTE:'alert-muted',PRACTICAS_PENDIENTE:'alert-muted'};
+  const tc={ARTICULO_33_CONSECUTIVO:'alert-red',ARTICULO_33:'alert-red',RECORDATORIO_REPROBADA:'alert-blue',PROMEDIO_BAJO:'alert-red',PRACTICAS:'alert-blue',SERVICIO_SOCIAL:'alert-green',SERVICIO_PENDIENTE:'alert-muted',PRACTICAS_PENDIENTE:'alert-muted'};
   el.innerHTML=alertas.map(a=>`
     <div class="alert ${tc[a.tipo]||'alert-muted'}">
       <span class="alert-icon">${a.icono||'⚠️'}</span>
@@ -1165,7 +1167,7 @@ function renderAlertas(alertas){
     </div>`).join('');
 }
 function labelTipo(t){
-  const m={ARTICULO_33_CONSECUTIVO:'🚨 Art. 33 Consecutivo: ',ARTICULO_33:'⚠️ Art. 33: ',DISCREPANCIA_CREDITOS:'Discrepancia créditos: ',DISCREPANCIA_AREA:'Discrepancia área: ',RECORDATORIO_REPROBADA:'📌 Recordatorio: ',PROMEDIO_BAJO:'Promedio bajo: ',PRACTICAS:'Prácticas Profesionales: ',SERVICIO_SOCIAL:'Servicio Social: '};
+  const m={ARTICULO_33_CONSECUTIVO:'🚨 Art. 33 Consecutivo: ',ARTICULO_33:'⚠️ Art. 33: ',RECORDATORIO_REPROBADA:'📌 Recordatorio: ',PROMEDIO_BAJO:'Promedio bajo: ',PRACTICAS:'Prácticas Profesionales: ',SERVICIO_SOCIAL:'Servicio Social: '};
   return m[t]||'';
 }
 
